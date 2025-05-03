@@ -7,6 +7,14 @@
     <title>10,000 Hours Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- EasyMDE -->
+    <link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
+    <script src="https://unpkg.com/easymde/dist/easymde.min.js"></script>
+    <!-- Font Awesome (for EasyMDE icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+        integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
         /* Add any custom styles here if needed */
         /* Ensure chart container has a defined height for responsiveness */
@@ -16,105 +24,260 @@
             /* Adjust as needed */
             width: 100%;
         }
+
+        /* Full-screen editor styling */
+        #note-editor-section {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            right: 1rem;
+            bottom: 1rem;
+            z-index: 1000;
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+
+        #note-editor-section.hidden {
+            display: none;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        #editor-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        #editor-container .EasyMDEContainer {
+            display: flex !important;
+            flex-direction: column !important;
+            flex-grow: 1 !important;
+            overflow: hidden !important;
+            height: 100% !important;
+        }
+
+        #editor-container .CodeMirror {
+            flex-grow: 1 !important;
+            height: auto !important;
+            min-height: 300px !important;
+        }
+
+        #editor-container .CodeMirror-scroll {
+            min-height: 300px !important;
+        }
+
+        /* Adjust button position at bottom */
+        #editor-buttons {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        /* Editable title styling */
+        .editable-title {
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .editable-title:hover {
+            background-color: rgba(79, 70, 229, 0.1);
+        }
+
+        .editable-title::after {
+            content: "✏️";
+            font-size: 0.8em;
+            margin-left: 5px;
+            opacity: .5;
+        }
+
+        /* Editable date styling */
+        .editable-date {
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 3px;
+            color: #6b7280;
+            /* Light gray color */
+            font-size: 0.85em;
+            /* Made slightly smaller */
+            margin-left: 8px;
+            position: relative;
+            padding-left: 20px;
+            /* Space for the calendar icon */
+        }
+
+        .editable-date:hover {
+            background-color: rgba(79, 70, 229, 0.1);
+        }
+
+        .editable-date::before {
+            content: "📅 ";
+            /* Calendar emoji */
+            font-size: 0.9em;
+            position: absolute;
+            left: 2px;
+            top: 2px;
+            right: 3px;
+        }
+
+        /* Remove pencil emoji */
+        .editable-date::after {
+            content: none;
+        }
+
+        .editable-title-input {
+            font-family: inherit;
+            font-size: inherit;
+            border: 1px solid #e5e7eb;
+            border-radius: 3px;
+            padding: 2px 5px;
+            width: 100%;
+            max-width: 400px;
+            outline: none;
+        }
+
+        .editable-date-input {
+            font-family: inherit;
+            font-size: inherit;
+            border: 1px solid #e5e7eb;
+            border-radius: 3px;
+            padding: 2px 5px;
+            outline: none;
+            color: #4b5563;
+        }
+
+        .editable-title-input:focus,
+        .editable-date-input:focus {
+            border-color: rgb(79, 70, 229);
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+        }
     </style>
 </head>
 
 <body class="bg-gray-100 font-sans leading-normal tracking-normal">
 
     <div class="container mx-auto p-4 md:p-8 max-w-4xl">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-indigo-700">10,000 Hour Journey</h1>
-            <p class="text-gray-600">Track your progress towards mastery.</p>
-        </header>
+        <!-- Main Content Sections (will be hidden when editing) -->
+        <div id="main-content">
+            <header class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-indigo-700">10,000 Hour Journey</h1>
+                <p class="text-gray-600">Track your progress towards mastery.</p>
+            </header>
 
-        <!-- Progress Section -->
-        <section class="mb-8 bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Progress Overview</h2>
-            <div class="mb-4">
-                <span class="font-medium text-gray-700">Total Hours Logged:</span>
-                <span id="total-hours" class="font-bold text-indigo-600">0</span> / 10,000
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-6 dark:bg-gray-700">
-                <div id="progress-bar"
-                    class="bg-indigo-600 h-6 rounded-full text-xs font-medium text-center p-0.5 leading-none"
-                    style="width: 0%">0%</div>
-            </div>
-            <div class="chart-container mt-6">
-                <canvas id="progress-chart"></canvas>
-            </div>
-        </section>
-
-        <!-- Add Entry Form -->
-        <section class="mb-8 bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Log New Session</h2>
-            <form id="add-entry-form" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                    <div class="md:col-span-2">
-                        <label for="description"
-                            class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                        <input type="text" id="description" name="description" required
-                            class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
-                            placeholder="What did you work on?">
-                    </div>
-                    <div class="md:col-span-1">
-                        <label for="hours" class="block text-sm font-medium text-gray-700 mb-1">Hours Spent</label>
-                        <input type="number" id="hours" name="hours" required step="0.1" min="0.1"
-                            class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
-                            placeholder="e.g., 1.5">
-                    </div>
-                    <div class="md:col-span-1">
-                        <label for="date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                        <input type="date" id="date" name="date"
-                            class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2">
-                    </div>
-                    <div class="md:col-span-1">
-                        <button type="submit"
-                            class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Add Entry
-                        </button>
-                    </div>
+            <!-- Progress Section -->
+            <section id="progress-section" class="mb-8 bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Progress Overview</h2>
+                <div class="mb-4">
+                    <span class="font-medium text-gray-700">Total Hours Logged:</span>
+                    <span id="total-hours" class="font-bold text-indigo-600">0</span> / 10,000
                 </div>
-                <!-- Optional Notes Textarea could go here if re-added -->
-                <!--
-                <div class="mt-4">
-                     <label for="notes" class="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
-                     <textarea id="notes" name="notes" rows="3"
-                               class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
-                               placeholder="Any details or reflections..."></textarea>
+                <div class="w-full bg-gray-200 rounded-full h-6 dark:bg-gray-700">
+                    <div id="progress-bar"
+                        class="bg-indigo-600 h-6 rounded-full text-xs font-medium text-center p-0.5 leading-none"
+                        style="width: 0%">0%</div>
                 </div>
-                 -->
-            </form>
-        </section>
+                <div class="chart-container mt-6">
+                    <canvas id="progress-chart"></canvas>
+                </div>
+            </section>
 
-        <!-- Entries Table -->
-        <section class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Log History</h2>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col"
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Date</th>
-                            <th scope="col"
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Description</th>
-                            <th scope="col"
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Hours</th>
-                            <th scope="col"
-                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="entries-tbody" class="bg-white divide-y divide-gray-200">
-                        <!-- Entries will be loaded here -->
-                        <tr>
-                            <td colspan="4" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                                Loading entries...</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- Add Entry Form -->
+            <section id="add-entry-section" class="mb-8 bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Log New Session</h2>
+                <form id="add-entry-form" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                        <div class="md:col-span-2">
+                            <label for="description"
+                                class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <input type="text" id="description" name="description" required
+                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
+                                placeholder="What did you work on?">
+                        </div>
+                        <div class="md:col-span-1">
+                            <label for="hours" class="block text-sm font-medium text-gray-700 mb-1">Hours Spent</label>
+                            <input type="number" id="hours" name="hours" required step="0.1" min="0.1"
+                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
+                                placeholder="e.g., 1.5">
+                        </div>
+                        <div class="md:col-span-1">
+                            <label for="date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                            <input type="date" id="date" name="date"
+                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2">
+                        </div>
+                        <div class="md:col-span-1">
+                            <button type="submit"
+                                class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                Add Entry
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Entries Table -->
+            <section id="log-history-section" class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Log History</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Date</th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Description</th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Hours</th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Notes Preview</th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="entries-tbody" class="bg-white divide-y divide-gray-200">
+                            <!-- Entries will be loaded here -->
+                            <tr>
+                                <td colspan="5" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                    Loading entries...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div> <!-- End #main-content -->
+
+        <!-- Note Editor Section (Initially Hidden) -->
+        <section id="note-editor-section" class="hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Edit Note for <span id="editor-title"
+                    class="font-mono editable-title"></span>
+                <div id="editor-date" class="editable-date"></div>
+            </h2>
+            <div id="editor-container">
+                <!-- EasyMDE will attach to this textarea -->
+                <textarea id="note-textarea"></textarea>
+            </div>
+            <div id="editor-buttons" class="space-x-3">
+                <button id="cancel-edit-btn" type="button"
+                    class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Cancel
+                </button>
+                <button id="save-note-btn" type="button"
+                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Save Note
+                </button>
             </div>
         </section>
 
