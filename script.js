@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("add-entry-form");
   const descriptionInput = document.getElementById("description");
   const hoursInput = document.getElementById("hours");
+  const notesInput = document.getElementById("notes");
   const tableBody = document.getElementById("entries-tbody");
   const totalHoursDisplay = document.getElementById("total-hours");
   const progressBar = document.getElementById("progress-bar");
@@ -38,7 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (entries.length === 0) {
       tableBody.innerHTML =
-        '<tr><td colspan="4" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No entries yet. Add one above!</td></tr>';
+        '<tr><td colspan="5" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No entries yet. Add one above!</td></tr>';
       return;
     }
 
@@ -48,6 +49,9 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     sortedEntries.forEach((entry, index) => {
+      const notesContent = entry.notes
+        ? entry.notes.replace(/\n/g, "<br>")
+        : '<span class="text-gray-400 italic">No notes</span>';
       const row = document.createElement("tr");
       row.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${
@@ -59,6 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${entry.hours.toFixed(
                   1
                 )}</td>
+                <td class="px-6 py-4 whitespace-wrap text-sm text-gray-600">${notesContent}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <button class="text-red-600 hover:text-red-900 delete-btn" data-index="${entries.findIndex(
                       e => e === entry
@@ -168,6 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const description = descriptionInput.value.trim();
     const hours = parseFloat(hoursInput.value);
+    const notes = notesInput.value.trim();
     const date = new Date().toISOString().split("T")[0]; // Get YYYY-MM-DD format
 
     if (!description || isNaN(hours) || hours <= 0) {
@@ -176,6 +182,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const newEntry = { date, description, hours };
+    if (notes) {
+      newEntry.notes = notes;
+    }
+
     entries.push(newEntry);
 
     console.log("Added new entry:", newEntry);
@@ -186,6 +196,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Clear form
     descriptionInput.value = "";
     hoursInput.value = "";
+    notesInput.value = "";
     descriptionInput.focus(); // Set focus back to description
   }
 
