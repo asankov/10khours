@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("add-entry-form");
   const descriptionInput = document.getElementById("description");
   const hoursInput = document.getElementById("hours");
+  const dateInput = document.getElementById("date");
   const tableBody = document.getElementById("entries-tbody");
   const totalHoursDisplay = document.getElementById("total-hours");
   const progressBar = document.getElementById("progress-bar");
@@ -168,7 +169,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const description = descriptionInput.value.trim();
     const hours = parseFloat(hoursInput.value);
-    const date = new Date().toISOString().split("T")[0]; // Get YYYY-MM-DD format
+    const selectedDate = dateInput.value;
+    const date = selectedDate
+      ? selectedDate
+      : new Date().toISOString().split("T")[0];
 
     if (!description || isNaN(hours) || hours <= 0) {
       alert("Please enter a valid description and positive number of hours.");
@@ -186,6 +190,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Clear form
     descriptionInput.value = "";
     hoursInput.value = "";
+    dateInput.value = "";
     descriptionInput.focus(); // Set focus back to description
   }
 
