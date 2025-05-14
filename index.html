@@ -7,6 +7,7 @@
     <title>10,000 Hours Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- EasyMDE -->
     <link rel="stylesheet" href="https://unpkg.com/easymde/dist/easymde.min.css">
@@ -16,37 +17,194 @@
         integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
-        /* Add any custom styles here if needed */
-        /* Ensure chart container has a defined height for responsiveness */
+        /* Base styles */
+        :root {
+            --primary-color: #111827;
+            --light-gray: #f7f7f7;
+            --medium-gray: #e5e7eb;
+            --dark-gray: #6b7280;
+            --text-color: #111827;
+            --card-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --border-radius: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: #f9fafb;
+            color: var(--text-color);
+            line-height: 1.5;
+        }
+
+        /* Header and top navigation */
+        .site-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--medium-gray);
+            background-color: white;
+        }
+
+        .site-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-color);
+            text-decoration: none;
+        }
+
+        .auth-links {
+            margin-left: auto;
+        }
+
+        /* Card styles */
+        .card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--medium-gray);
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        /* Progress visualization */
         .chart-container {
             position: relative;
-            height: 40vh;
-            /* Adjust as needed */
+            height: 400px;
             width: 100%;
         }
 
-        /* Full-screen editor styling */
+        /* Progress card specific */
+        .progress-card h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-subtitle {
+            color: var(--dark-gray);
+            margin-bottom: 2rem;
+        }
+
+        /* Progress bar */
+        .progress-outer {
+            width: 100%;
+            background-color: var(--light-gray);
+            border-radius: 9999px;
+            height: 0.75rem;
+        }
+
+        .progress-inner {
+            background-color: var(--primary-color);
+            height: 100%;
+            border-radius: 9999px;
+            transition: width 0.3s ease;
+        }
+
+        /* Table styles */
+        .entries-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .entries-table th {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-weight: 500;
+            color: var(--dark-gray);
+            border-bottom: 1px solid var(--medium-gray);
+        }
+
+        .entries-table td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--medium-gray);
+        }
+
+        /* Button styles */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+
+        .btn-secondary {
+            background-color: white;
+            color: var(--text-color);
+            border: 1px solid var(--medium-gray);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--light-gray);
+        }
+
+        .btn-icon {
+            margin-right: 0.5rem;
+        }
+
+        /* Form styles */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--medium-gray);
+            border-radius: 0.375rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+        }
+
+        /* Note editor styles */
         #note-editor-section {
             position: fixed;
-            top: 1rem;
-            left: 1rem;
-            right: 1rem;
-            bottom: 1rem;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             z-index: 1000;
             background-color: white;
             padding: 1.5rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            transition: opacity 0.2s, transform 0.2s;
         }
 
         #note-editor-section.hidden {
             display: none;
-            opacity: 0;
-            transform: translateY(10px);
         }
 
         #editor-container {
@@ -76,12 +234,6 @@
             min-height: 300px !important;
         }
 
-        /* Adjust button position at bottom */
-        #editor-buttons {
-            display: flex;
-            justify-content: flex-end;
-        }
-
         /* Editable title styling */
         .editable-title {
             cursor: pointer;
@@ -105,14 +257,11 @@
             cursor: pointer;
             padding: 2px 5px;
             border-radius: 3px;
-            color: #6b7280;
-            /* Light gray color */
+            color: var(--dark-gray);
             font-size: 0.85em;
-            /* Made slightly smaller */
             margin-left: 8px;
             position: relative;
             padding-left: 20px;
-            /* Space for the calendar icon */
         }
 
         .editable-date:hover {
@@ -120,138 +269,185 @@
         }
 
         .editable-date::before {
-            content: "📅 ";
-            /* Calendar emoji */
+            content: "📅";
             font-size: 0.9em;
             position: absolute;
             left: 2px;
             top: 2px;
-            right: 3px;
         }
 
-        /* Remove pencil emoji */
-        .editable-date::after {
-            content: none;
-        }
-
-        .editable-title-input {
-            font-family: inherit;
-            font-size: inherit;
-            border: 1px solid #e5e7eb;
-            border-radius: 3px;
-            padding: 2px 5px;
-            width: 100%;
-            max-width: 400px;
-            outline: none;
-        }
-
+        .editable-title-input,
         .editable-date-input {
             font-family: inherit;
             font-size: inherit;
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--medium-gray);
             border-radius: 3px;
             padding: 2px 5px;
             outline: none;
-            color: #4b5563;
         }
 
         .editable-title-input:focus,
         .editable-date-input:focus {
-            border-color: rgb(79, 70, 229);
+            border-color: var(--primary-color);
             box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+        }
+
+        /* Responsive layout */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+        }
+
+        /* Toggle Switch styles */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary-color);
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 1px var(--primary-color);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(24px);
+        }
+
+        .slider.round {
+            border-radius: 24px;
+        }
+
+        .slider.round:before {
+            border-radius: 50%;
         }
     </style>
 </head>
 
-<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+<body>
+    <!-- Site Header -->
+    <header class="site-header">
+        <a href="#" class="site-title">10K Hours Tracker</a>
+        <div class="auth-links">
+            <a href="#" class="btn btn-secondary">Sign in</a>
+            <a href="#" class="btn btn-primary">Sign up</a>
+        </div>
+    </header>
 
-    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+    <div class="container mx-auto p-4 md:p-8" style="max-width: 80%;">
         <!-- Main Content Sections (will be hidden when editing) -->
         <div id="main-content">
-            <header class="text-center mb-8">
-                <h1 class="text-4xl font-bold text-indigo-700">10,000 Hour Journey</h1>
-                <p class="text-gray-600">Track your progress towards mastery.</p>
-            </header>
-
             <!-- Progress Section -->
-            <section id="progress-section" class="mb-8 bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Progress Overview</h2>
-                <div class="mb-4">
-                    <span class="font-medium text-gray-700">Total Hours Logged:</span>
-                    <span id="total-hours" class="font-bold text-indigo-600">0</span> / 10,000
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-6 dark:bg-gray-700">
-                    <div id="progress-bar"
-                        class="bg-indigo-600 h-6 rounded-full text-xs font-medium text-center p-0.5 leading-none"
-                        style="width: 0%">0%</div>
-                </div>
-                <div class="chart-container mt-6">
-                    <canvas id="progress-chart"></canvas>
+            <section id="progress-section" class="card progress-card">
+                <div class="card-body">
+                    <h2>Your Progress</h2>
+                    <p class="progress-subtitle">You've logged <span id="total-hours" class="font-bold">0</span> hours
+                        so far. Keep going!</p>
+
+                    <div class="progress-outer">
+                        <div id="progress-bar" class="progress-inner" style="width: 0%"></div>
+                    </div>
+
+                    <div class="chart-controls flex justify-end items-center mt-6 mb-2">
+                        <span class="text-sm mr-2">Evenly spaced</span>
+                        <label class="switch">
+                            <input type="checkbox" id="chart-type-toggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="text-sm ml-2">Time-based</span>
+                    </div>
+
+                    <div class="chart-container mt-8">
+                        <canvas id="progress-chart"></canvas>
+                    </div>
                 </div>
             </section>
 
-            <!-- Add Entry Form -->
-            <section id="add-entry-section" class="mb-8 bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Log New Session</h2>
-                <form id="add-entry-form" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                        <div class="md:col-span-2">
-                            <label for="description"
-                                class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <input type="text" id="description" name="description" required
-                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
+            <!-- Entries and Add Entry Section -->
+            <section id="log-history-section" class="card">
+                <div class="card-header flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-semibold">Learning Entries</h2>
+                        <p class="text-sm text-gray-500">Track your learning journey with detailed entries</p>
+                    </div>
+                    <button id="show-add-form-btn" class="btn btn-primary" style="background-color: black;">
+                        <span class="btn-icon">+</span> Add Entry
+                    </button>
+                </div>
+
+                <!-- Add Entry Form (Initially Hidden) -->
+                <div id="add-entry-form-container" class="hidden border-t border-gray-200 p-4 bg-gray-50">
+                    <form id="add-entry-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="form-group md:col-span-2">
+                            <label for="description" class="form-label">Description</label>
+                            <input type="text" id="description" name="description" required class="form-input"
                                 placeholder="What did you work on?">
                         </div>
-                        <div class="md:col-span-1">
-                            <label for="hours" class="block text-sm font-medium text-gray-700 mb-1">Hours Spent</label>
+                        <div class="form-group">
+                            <label for="hours" class="form-label">Hours Spent</label>
                             <input type="number" id="hours" name="hours" required step="0.1" min="0.1"
-                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2"
-                                placeholder="e.g., 1.5">
+                                class="form-input" placeholder="e.g., 1.5">
                         </div>
-                        <div class="md:col-span-1">
-                            <label for="date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                            <input type="date" id="date" name="date"
-                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2">
+                        <div class="form-group">
+                            <label for="date" class="form-label">Date</label>
+                            <input type="date" id="date" name="date" class="form-input">
                         </div>
-                        <div class="md:col-span-1">
-                            <button type="submit"
-                                class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                Add Entry
-                            </button>
+                        <div class="md:col-span-4 flex justify-end">
+                            <button type="button" id="cancel-add-form-btn"
+                                class="btn btn-secondary mr-2">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Add Entry</button>
                         </div>
-                    </div>
-                </form>
-            </section>
+                    </form>
+                </div>
 
-            <!-- Entries Table -->
-            <section id="log-history-section" class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Log History</h2>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                <div class="card-body p-0">
+                    <table class="entries-table">
+                        <thead>
                             <tr>
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Date</th>
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Description</th>
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Hours</th>
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Notes Preview</th>
-                                <th scope="col"
-                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions</th>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Hours</th>
+                                <th>Preview</th>
+                                <th></th>
                             </tr>
                         </thead>
-                        <tbody id="entries-tbody" class="bg-white divide-y divide-gray-200">
+                        <tbody id="entries-tbody">
                             <!-- Entries will be loaded here -->
                             <tr>
-                                <td colspan="5" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                                    Loading entries...</td>
+                                <td colspan="5" class="text-center text-gray-500">Loading entries...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -269,13 +465,11 @@
                 <!-- EasyMDE will attach to this textarea -->
                 <textarea id="note-textarea"></textarea>
             </div>
-            <div id="editor-buttons" class="space-x-3">
-                <button id="cancel-edit-btn" type="button"
-                    class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <div id="editor-buttons" class="space-x-3 flex justify-end">
+                <button id="cancel-edit-btn" type="button" class="btn btn-secondary">
                     Cancel
                 </button>
-                <button id="save-note-btn" type="button"
-                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <button id="save-note-btn" type="button" class="btn btn-primary">
                     Save Note
                 </button>
             </div>
