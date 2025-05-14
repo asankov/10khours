@@ -2,8 +2,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const goalHours = 10000;
   let entries = [];
   let chartInstance = null;
+  let useTimeScale = true; // Default to time-based chart
 
   const form = document.getElementById("add-entry-form");
+  const addEntryContainer = document.getElementById("add-entry-form-container");
+  const showAddFormBtn = document.getElementById("show-add-form-btn");
+  const cancelAddFormBtn = document.getElementById("cancel-add-form-btn");
   const descriptionInput = document.getElementById("description");
   const hoursInput = document.getElementById("hours");
   const dateInput = document.getElementById("date");
@@ -13,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const chartCanvas = document
     .getElementById("progress-chart")
     .getContext("2d");
+  const chartTypeToggle = document.getElementById("chart-type-toggle");
 
   // New elements for note editor
   const mainContentDiv = document.getElementById("main-content");
@@ -58,7 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (entries.length === 0) {
       tableBody.innerHTML =
-        '<tr><td colspan="5" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No entries yet. Add one above!</td></tr>';
+        '<tr><td colspan="5" class="text-center text-gray-500">No entries yet. Add one above!</td></tr>';
       return;
     }
 
@@ -87,21 +92,15 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       row.innerHTML = `
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${
-                  entry.date
-                }</td>
-                <td class="px-6 py-4 whitespace-wrap text-sm text-gray-700">${
-                  entry.description
-                }</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${entry.hours.toFixed(
-                  1
-                )}</td>
-                <td class="px-6 py-4 whitespace-wrap text-sm text-gray-600">${notesPreviewHtml}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 space-x-2">
-                    <button class="text-indigo-600 hover:text-indigo-900 edit-btn" data-index="${originalIndex}">Edit Notes</button>
-                    <button class="text-red-600 hover:text-red-900 delete-btn" data-index="${originalIndex}">Delete</button>
-                </td>
-            `;
+        <td>${entry.date}</td>
+        <td>${entry.description}</td>
+        <td>${entry.hours.toFixed(1)}</td>
+        <td>${notesPreviewHtml}</td>
+        <td class="space-x-2">
+          <button class="text-black-600 hover:text-gray-400 edit-btn" data-index="${originalIndex}"><i class="fas fa-edit"></i></button>
+          <button class="text-black-600 hover:text-red-600 delete-btn" data-index="${originalIndex}"><i class="fas fa-trash"></i></button>
+        </td>
+      `;
       tableBody.appendChild(row);
     });
 
@@ -121,17 +120,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     totalHoursDisplay.textContent = totalHours.toFixed(1);
     progressBar.style.width = `${percentage}%`;
-    progressBar.textContent = `${percentage.toFixed(1)}%`; // Optional: show text on bar
-    progressBar.classList.toggle("text-white", percentage > 10); // Make text visible on darker bar
-    progressBar.classList.toggle("text-xs", true);
-    progressBar.classList.toggle("text-center", true);
-    progressBar.classList.toggle("font-medium", true);
 
     console.log(`Total hours: ${totalHours}, Percentage: ${percentage}%`);
   }
 
   function renderChart() {
-    console.log("Rendering chart...");
+    console.log(
+      "Rendering chart with " +
+        (useTimeScale ? "time-based" : "evenly-spaced") +
+        " scale..."
+    );
     // Sort entries by date ascending for the chart
     const sortedEntries = [...entries].sort(
       (a, b) => new Date(a.date) - new Date(b.date)
@@ -154,52 +152,101 @@ document.addEventListener("DOMContentLoaded", () => {
       (a, b) => new Date(a) - new Date(b)
     );
 
+    // Format data for chart based on selected type
+    const dataPoints = [];
+
     sortedDates.forEach(date => {
       runningTotal += dailyHours[date];
       labels.push(date);
       cumulativeHoursData.push(runningTotal);
+
+      // Also prepare time-based data points
+      dataPoints.push({
+        x: new Date(date),
+        y: runningTotal,
+      });
     });
 
     if (chartInstance) {
       chartInstance.destroy(); // Destroy previous chart instance
     }
 
-    chartInstance = new Chart(chartCanvas, {
+    // Configure options based on chart type
+    const chartOptions = {
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: false,
+            text: "Cumulative Hours",
+          },
+        },
+        x: {
+          title: {
+            display: true,
+            text: "Date",
+          },
+        },
+      },
+      responsive: true,
+      maintainAspectRatio: false,
+    };
+
+    // Add time scale specific options if needed
+    if (useTimeScale) {
+      chartOptions.scales.x.type = "time";
+      chartOptions.scales.x.time = {
+        unit: "day",
+        displayFormats: {
+          day: "MMM dd",
+        },
+        tooltipFormat: "MMM dd, yyyy",
+      };
+    }
+
+    // Create the appropriate chart configuration
+    const chartConfig = {
       type: "line",
-      data: {
+      options: chartOptions,
+    };
+
+    // Set data based on chart type
+    if (useTimeScale) {
+      chartConfig.data = {
+        datasets: [
+          {
+            label: "Cumulative Hours Spent",
+            data: dataPoints,
+            borderColor: "black",
+            backgroundColor: "transparent",
+            tension: 0.1,
+            fill: true,
+          },
+        ],
+      };
+    } else {
+      chartConfig.data = {
         labels: labels,
         datasets: [
           {
             label: "Cumulative Hours Spent",
             data: cumulativeHoursData,
-            borderColor: "rgb(79, 70, 229)", // Indigo
-            backgroundColor: "rgba(79, 70, 229, 0.1)",
+            borderColor: "black",
+            backgroundColor: "transparent",
             tension: 0.1,
             fill: true,
           },
         ],
-      },
-      options: {
-        scales: {
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: "Cumulative Hours",
-            },
-          },
-          x: {
-            title: {
-              display: true,
-              text: "Date",
-            },
-          },
-        },
-        responsive: true,
-        maintainAspectRatio: true, // Adjust as needed
-      },
-    });
-    console.log("Chart rendered.");
+      };
+    }
+
+    // Create chart instance
+    chartInstance = new Chart(chartCanvas, chartConfig);
+    console.log(
+      "Chart rendered with " +
+        (useTimeScale ? "time-based" : "evenly-spaced") +
+        " scale."
+    );
   }
 
   // --- View Switching & Editor Handling ---
@@ -396,7 +443,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleEditNoteClick(event) {
-    const indexToEdit = parseInt(event.target.getAttribute("data-index"), 10);
+    // Find the button element that was clicked (could be the i tag inside the button)
+    let target = event.target;
+
+    // If the user clicked on the icon inside the button, navigate up to the button
+    if (target.tagName.toLowerCase() === "i") {
+      target = target.parentElement;
+    }
+
+    const indexToEdit = parseInt(target.getAttribute("data-index"), 10);
+    console.log("Attempting to edit notes for index:", indexToEdit);
+
     if (
       isNaN(indexToEdit) ||
       indexToEdit < 0 ||
@@ -404,7 +461,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       console.error(
         "Invalid index for editing notes:",
-        event.target.getAttribute("data-index")
+        target.getAttribute("data-index")
       );
       return;
     }
@@ -519,6 +576,23 @@ document.addEventListener("DOMContentLoaded", () => {
     showMainView(); // This will also destroy the EasyMDE instance
   }
 
+  // --- Form Handling ---
+  function showAddEntryForm() {
+    addEntryContainer.classList.remove("hidden");
+    descriptionInput.focus();
+    showAddFormBtn.classList.add("hidden");
+  }
+
+  function hideAddEntryForm() {
+    addEntryContainer.classList.add("hidden");
+    showAddFormBtn.classList.remove("hidden");
+    resetForm();
+  }
+
+  function resetForm() {
+    form.reset();
+  }
+
   // --- Event Handlers ---
   function handleAddEntry(event) {
     event.preventDefault();
@@ -529,7 +603,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const date = selectedDate
       ? selectedDate
       : new Date().toISOString().split("T")[0];
-    // Note: We removed the direct notes input from this form
 
     if (!description || isNaN(hours) || hours <= 0) {
       alert("Please enter a valid description and positive number of hours.");
@@ -544,11 +617,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     saveEntries();
     renderAll();
-
-    descriptionInput.value = "";
-    hoursInput.value = "";
-    dateInput.value = "";
-    descriptionInput.focus();
+    hideAddEntryForm();
   }
 
   function handleDeleteEntry(event) {
@@ -580,6 +649,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Handle chart type toggle
+  function handleChartTypeToggle() {
+    useTimeScale = chartTypeToggle.checked;
+    renderChart();
+  }
+
   // --- Initialization ---
   function renderAll() {
     // Only render main view components if not editing
@@ -595,7 +670,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   form.addEventListener("submit", handleAddEntry);
-  // Add listeners for editor buttons (textarea listener removed)
+  showAddFormBtn.addEventListener("click", showAddEntryForm);
+  cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
+  chartTypeToggle.addEventListener("change", handleChartTypeToggle);
+
+  // Add listeners for editor buttons
   saveNoteBtn.addEventListener("click", handleSaveNote);
   cancelEditBtn.addEventListener("click", handleCancelEdit);
 
