@@ -354,6 +354,57 @@
         .slider.round:before {
             border-radius: 50%;
         }
+
+        /* Notes preview fade effect */
+        .notes-preview {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+        }
+
+        .notes-preview::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 30%;
+            height: 100%;
+            background: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1));
+            pointer-events: none;
+        }
+
+        /* Inline editing styles */
+        .editable-cell {
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.2s;
+        }
+
+        .editable-cell:hover {
+            background-color: rgba(90, 90, 95, 0.05);
+        }
+
+        .editable-cell:hover::after {
+            content: '✏️';
+            font-size: 0.8em;
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.3;
+        }
+
+        .inline-edit-input {
+            width: 100%;
+            padding: 0.25rem 0.5rem;
+            border: 1px solid var(--primary-color);
+            border-radius: 0.25rem;
+            font-size: inherit;
+            font-family: inherit;
+            background-color: white;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(92, 92, 95, 0.2);
+        }
     </style>
 </head>
 
