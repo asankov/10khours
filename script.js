@@ -81,21 +81,32 @@ document.addEventListener("DOMContentLoaded", () => {
       if (entry.notes) {
         const split = entry.notes.split("\n");
         const firstLine = split[0];
-        const snippet =
-          firstLine.substring(0, 50) +
-          (firstLine.length > 50 || split.length > 1 ? "..." : "");
+        // Instead of appending "..." we'll use a CSS class to create a fade effect
+        const snippet = firstLine.substring(0, 50);
         // Basic escaping to prevent raw HTML in table
         const escapedSnippet = snippet
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;");
-        notesPreviewHtml = `<span class="font-mono text-xs">${escapedSnippet}</span>`;
+
+        // Add 'notes-preview' class for styling the fade effect
+        const hasContinuation = firstLine.length > 50 || split.length > 1;
+        notesPreviewHtml = `<span class="font-mono text-xs ${
+          hasContinuation ? "notes-preview" : ""
+        }">${escapedSnippet}</span>`;
       }
 
+      // Make cells clickable by adding data attributes and editable class
       row.innerHTML = `
-        <td>${entry.date}</td>
-        <td>${entry.description}</td>
-        <td>${entry.hours.toFixed(1)}</td>
-        <td>${notesPreviewHtml}</td>
+        <td class="editable-cell" data-field="date" data-index="${originalIndex}">${
+        entry.date
+      }</td>
+        <td class="editable-cell" data-field="description" data-index="${originalIndex}">${
+        entry.description
+      }</td>
+        <td class="editable-cell" data-field="hours" data-index="${originalIndex}">${entry.hours.toFixed(
+        1
+      )}</td>
+        <td class="editable-cell" data-field="notes" data-index="${originalIndex}">${notesPreviewHtml}</td>
         <td class="space-x-2">
           <button class="text-black-600 hover:text-gray-400 edit-btn" data-index="${originalIndex}"><i class="fas fa-edit"></i></button>
           <button class="text-black-600 hover:text-red-600 delete-btn" data-index="${originalIndex}"><i class="fas fa-trash"></i></button>
@@ -110,6 +121,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.querySelectorAll(".edit-btn").forEach(button => {
       button.addEventListener("click", handleEditNoteClick);
+    });
+
+    // Add event listeners to editable cells
+    document.querySelectorAll(".editable-cell").forEach(cell => {
+      cell.addEventListener("click", handleCellClick);
     });
   }
 
@@ -683,4 +699,180 @@ document.addEventListener("DOMContentLoaded", () => {
   renderAll(); // Initial render on page load
 
   console.log("10k Hours Tracker initialized.");
+
+  // Handle clicks on table cells for inline editing
+  function handleCellClick(event) {
+    const cell = event.currentTarget;
+    const field = cell.getAttribute("data-field");
+    const index = parseInt(cell.getAttribute("data-index"), 10);
+
+    if (isNaN(index) || index < 0 || index >= entries.length) {
+      console.error(
+        "Invalid index for cell editing:",
+        cell.getAttribute("data-index")
+      );
+      return;
+    }
+
+    // Get the current value from the entry
+    const entry = entries[index];
+
+    // Don't create editor if already editing this cell
+    if (cell.querySelector("input, textarea")) {
+      return;
+    }
+
+    // Handle different field types
+    switch (field) {
+      case "date":
+        createDateEditor(cell, entry, index);
+        break;
+      case "description":
+        createTextEditor(cell, entry, index, "description");
+        break;
+      case "hours":
+        createNumberEditor(cell, entry, index);
+        break;
+      case "notes":
+        // For notes, we'll use the full editor view
+        handleEditNoteClick({
+          target: document.querySelector(`.edit-btn[data-index="${index}"]`),
+          preventDefault: () => {}, // Add a dummy preventDefault method
+          stopPropagation: () => {}, // Add a dummy stopPropagation method
+        });
+        break;
+      default:
+        break;
+    }
+  }
+
+  function createTextEditor(cell, entry, index, field) {
+    const currentValue = entry[field];
+
+    // Store original content for cancellation
+    const originalContent = cell.innerHTML;
+
+    // Create input element
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = currentValue;
+    input.className = "inline-edit-input";
+
+    // Clear cell and add input
+    cell.innerHTML = "";
+    cell.appendChild(input);
+
+    // Focus the input
+    input.focus();
+
+    // Handle save on blur and enter key
+    input.addEventListener("blur", () =>
+      saveInlineEdit(cell, input, index, field, originalContent)
+    );
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        saveInlineEdit(cell, input, index, field, originalContent);
+      } else if (e.key === "Escape") {
+        cancelInlineEdit(cell, originalContent);
+      }
+    });
+  }
+
+  function createNumberEditor(cell, entry, index) {
+    const currentValue = entry.hours;
+
+    // Store original content for cancellation
+    const originalContent = cell.innerHTML;
+
+    // Create input element
+    const input = document.createElement("input");
+    input.type = "number";
+    input.value = currentValue;
+    input.step = "0.1";
+    input.min = "0.1";
+    input.className = "inline-edit-input";
+
+    // Clear cell and add input
+    cell.innerHTML = "";
+    cell.appendChild(input);
+
+    // Focus the input
+    input.focus();
+
+    // Handle save on blur and enter key
+    input.addEventListener("blur", () =>
+      saveInlineEdit(cell, input, index, "hours", originalContent)
+    );
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        saveInlineEdit(cell, input, index, "hours", originalContent);
+      } else if (e.key === "Escape") {
+        cancelInlineEdit(cell, originalContent);
+      }
+    });
+  }
+
+  function createDateEditor(cell, entry, index) {
+    const currentValue = entry.date;
+
+    // Store original content for cancellation
+    const originalContent = cell.innerHTML;
+
+    // Create input element
+    const input = document.createElement("input");
+    input.type = "date";
+    input.value = currentValue;
+    input.className = "inline-edit-input";
+
+    // Clear cell and add input
+    cell.innerHTML = "";
+    cell.appendChild(input);
+
+    // Focus the input
+    input.focus();
+
+    // Handle save on blur and enter key
+    input.addEventListener("blur", () =>
+      saveInlineEdit(cell, input, index, "date", originalContent)
+    );
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        saveInlineEdit(cell, input, index, "date", originalContent);
+      } else if (e.key === "Escape") {
+        cancelInlineEdit(cell, originalContent);
+      }
+    });
+  }
+
+  function saveInlineEdit(cell, input, index, field, originalContent) {
+    const newValue = input.value.trim();
+
+    // Validate input based on field type
+    if (field === "hours") {
+      const numValue = parseFloat(newValue);
+      if (isNaN(numValue) || numValue <= 0) {
+        alert("Please enter a valid positive number for hours.");
+        input.focus();
+        return;
+      }
+      entries[index].hours = numValue;
+    } else if (field === "description" && newValue === "") {
+      alert("Description cannot be empty.");
+      input.focus();
+      return;
+    } else {
+      entries[index][field] = newValue;
+    }
+
+    // Save changes
+    saveEntries();
+
+    // Refresh the table to show updated values
+    renderAll();
+  }
+
+  function cancelInlineEdit(cell, originalContent) {
+    // Restore original content
+    cell.innerHTML = originalContent;
+  }
 });
