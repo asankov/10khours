@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let entries = [];
   let chartInstance = null;
   let useTimeScale = true; // Default to time-based chart
+  let darkMode = localStorage.getItem("darkMode") === "true"; // Get dark mode setting from localStorage
 
   const form = document.getElementById("add-entry-form");
   const addEntryContainer = document.getElementById("add-entry-form-container");
@@ -18,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("progress-chart")
     .getContext("2d");
   const chartTypeToggle = document.getElementById("chart-type-toggle");
+  const themeToggle = document.getElementById("theme-toggle");
 
   // New elements for note editor
   const mainContentDiv = document.getElementById("main-content");
@@ -37,6 +39,29 @@ document.addEventListener("DOMContentLoaded", () => {
     typeof marked,
     marked
   );
+  
+  // --- Theme Management ---
+  function setTheme(isDark) {
+    if (isDark) {
+      document.documentElement.setAttribute("data-theme", "dark");
+      if (themeToggle) themeToggle.checked = true;
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+      if (themeToggle) themeToggle.checked = false;
+    }
+    
+    // If chart exists, update it to match the theme
+    if (chartInstance) {
+      updateChartTheme();
+    }
+    
+    // Save preference to localStorage
+    localStorage.setItem("darkMode", isDark);
+    darkMode = isDark;
+  }
+  
+  // Apply theme on initial load
+  setTheme(darkMode);
 
   // --- Data Persistence ---
   function loadEntries() {
@@ -54,6 +79,24 @@ document.addEventListener("DOMContentLoaded", () => {
   function saveEntries() {
     localStorage.setItem("learningEntries", JSON.stringify(entries));
     console.log("Saved entries:", entries);
+  }
+  
+  // Update chart colors based on current theme
+  function updateChartTheme() {
+    if (!chartInstance) return;
+    
+    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-color').trim();
+    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--bg-color').trim();
+    
+    // Update chart text colors
+    chartInstance.options.scales.x.ticks.color = textColor;
+    chartInstance.options.scales.y.ticks.color = textColor;
+    chartInstance.options.scales.x.title.color = textColor;
+    chartInstance.options.scales.y.title.color = textColor;
+    chartInstance.options.plugins.legend.labels.color = textColor;
+    
+    // Update the chart
+    chartInstance.update();
   }
 
   // --- Rendering ---
@@ -146,6 +189,11 @@ document.addEventListener("DOMContentLoaded", () => {
         (useTimeScale ? "time-based" : "evenly-spaced") +
         " scale..."
     );
+    
+    // Get theme colors
+    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-color').trim() || '#111827';
+    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#111827';
+    
     // Sort entries by date ascending for the chart
     const sortedEntries = [...entries].sort(
       (a, b) => new Date(a.date) - new Date(b.date)
@@ -195,17 +243,38 @@ document.addEventListener("DOMContentLoaded", () => {
           title: {
             display: false,
             text: "Cumulative Hours",
+            color: textColor
           },
+          ticks: {
+            color: textColor
+          },
+          grid: {
+            color: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+          }
         },
         x: {
           title: {
             display: true,
             text: "Date",
+            color: textColor
           },
+          ticks: {
+            color: textColor
+          },
+          grid: {
+            color: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+          }
         },
       },
       responsive: true,
       maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: {
+            color: textColor
+          }
+        }
+      }
     };
 
     // Add time scale specific options if needed
@@ -233,8 +302,8 @@ document.addEventListener("DOMContentLoaded", () => {
           {
             label: "Cumulative Hours Spent",
             data: dataPoints,
-            borderColor: "black",
-            backgroundColor: "transparent",
+            borderColor: primaryColor,
+            backgroundColor: darkMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(17, 24, 39, 0.05)',
             tension: 0.1,
             fill: true,
           },
@@ -247,8 +316,8 @@ document.addEventListener("DOMContentLoaded", () => {
           {
             label: "Cumulative Hours Spent",
             data: cumulativeHoursData,
-            borderColor: "black",
-            backgroundColor: "transparent",
+            borderColor: primaryColor,
+            backgroundColor: darkMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(17, 24, 39, 0.05)',
             tension: 0.1,
             fill: true,
           },
@@ -685,14 +754,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- Event Listeners ---
   form.addEventListener("submit", handleAddEntry);
   showAddFormBtn.addEventListener("click", showAddEntryForm);
   cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
   chartTypeToggle.addEventListener("change", handleChartTypeToggle);
-
-  // Add listeners for editor buttons
   saveNoteBtn.addEventListener("click", handleSaveNote);
   cancelEditBtn.addEventListener("click", handleCancelEdit);
+
+  // Theme toggle event listener
+  if (themeToggle) {
+    themeToggle.addEventListener("change", () => {
+      setTheme(themeToggle.checked);
+    });
+  }
 
   loadEntries();
   showMainView(); // Ensure main view is shown initially
