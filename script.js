@@ -3,7 +3,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let entries = [];
   let chartInstance = null;
   let useTimeScale = true; // Default to time-based chart
-  let darkMode = localStorage.getItem("darkMode") === "true"; // Get dark mode setting from localStorage
+  let darkMode = false; // Will be loaded from IndexedDB
+  let dbReady = false; // Track if database is initialized
 
   const form = document.getElementById("add-entry-form");
   const addEntryContainer = document.getElementById("add-entry-form-container");
@@ -41,6 +42,213 @@ document.addEventListener("DOMContentLoaded", () => {
     marked
   );
 
+  // --- IndexedDB Management ---
+  let db = null;
+  const DB_NAME = "LearningTrackerDB";
+  const DB_VERSION = 1;
+  const STORE_NAME = "entries";
+  const SETTINGS_STORE = "settings";
+
+  // Initialize IndexedDB
+  function initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+      request.onerror = () => {
+        console.error("Failed to open IndexedDB:", request.error);
+        reject(request.error);
+      };
+
+      request.onsuccess = () => {
+        db = request.result;
+        console.log("IndexedDB initialized successfully");
+        dbReady = true;
+        resolve(db);
+      };
+
+      request.onupgradeneeded = event => {
+        db = event.target.result;
+        console.log("Upgrading IndexedDB schema...");
+
+        // Create entries store
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          const entriesStore = db.createObjectStore(STORE_NAME, {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          // Create indexes for better querying
+          entriesStore.createIndex("date", "date", { unique: false });
+          entriesStore.createIndex("description", "description", {
+            unique: false,
+          });
+        }
+
+        // Create settings store
+        if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
+          const settingsStore = db.createObjectStore(SETTINGS_STORE, {
+            keyPath: "key",
+          });
+        }
+
+        console.log("IndexedDB schema created/updated");
+      };
+    });
+  }
+
+  // Load entries from IndexedDB
+  function loadEntries() {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready, waiting...");
+        // If DB not ready, resolve with empty array and try to init
+        resolve([]);
+        return;
+      }
+
+      const transaction = db.transaction([STORE_NAME], "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const loadedEntries = request.result || [];
+        // Ensure hours are numbers and remove the auto-generated id for our array
+        entries = loadedEntries.map(entry => ({
+          date: entry.date,
+          description: entry.description,
+          hours: parseFloat(entry.hours),
+          notes: entry.notes,
+          _id: entry.id, // Keep original ID for updates
+        }));
+        console.log("Loaded entries from IndexedDB:", entries);
+        resolve(entries);
+      };
+
+      request.onerror = () => {
+        console.error("Failed to load entries:", request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  // Save entries to IndexedDB
+  function saveEntries() {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready, cannot save entries");
+        reject(new Error("Database not ready"));
+        return;
+      }
+
+      const transaction = db.transaction([STORE_NAME], "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+
+      // Clear existing entries and add current ones
+      const clearRequest = store.clear();
+
+      clearRequest.onsuccess = () => {
+        // Add all current entries
+        let addCount = 0;
+        const totalEntries = entries.length;
+
+        if (totalEntries === 0) {
+          console.log("No entries to save");
+          resolve();
+          return;
+        }
+
+        entries.forEach((entry, index) => {
+          // Create a clean entry without the internal _id
+          const cleanEntry = {
+            date: entry.date,
+            description: entry.description,
+            hours: entry.hours,
+            notes: entry.notes,
+          };
+
+          const addRequest = store.add(cleanEntry);
+
+          addRequest.onsuccess = () => {
+            // Update the entry with the new ID
+            entries[index]._id = addRequest.result;
+            addCount++;
+
+            if (addCount === totalEntries) {
+              console.log("All entries saved to IndexedDB:", entries);
+              resolve();
+            }
+          };
+
+          addRequest.onerror = () => {
+            console.error("Failed to save entry:", addRequest.error);
+            reject(addRequest.error);
+          };
+        });
+      };
+
+      clearRequest.onerror = () => {
+        console.error("Failed to clear entries:", clearRequest.error);
+        reject(clearRequest.error);
+      };
+    });
+  }
+
+  // Load settings from IndexedDB
+  function loadSettings() {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready for settings");
+        resolve({ darkMode: false }); // Default settings
+        return;
+      }
+
+      const transaction = db.transaction([SETTINGS_STORE], "readonly");
+      const store = transaction.objectStore(SETTINGS_STORE);
+      const request = store.get("darkMode");
+
+      request.onsuccess = () => {
+        const setting = request.result;
+        const darkModeValue = setting ? setting.value : false;
+        console.log("Loaded dark mode setting:", darkModeValue);
+        resolve({ darkMode: darkModeValue });
+      };
+
+      request.onerror = () => {
+        console.error("Failed to load settings:", request.error);
+        resolve({ darkMode: false }); // Fallback to default
+      };
+    });
+  }
+
+  // Save settings to IndexedDB
+  function saveSettings(settings) {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready, cannot save settings");
+        reject(new Error("Database not ready"));
+        return;
+      }
+
+      const transaction = db.transaction([SETTINGS_STORE], "readwrite");
+      const store = transaction.objectStore(SETTINGS_STORE);
+
+      // Save dark mode setting
+      const darkModeRequest = store.put({
+        key: "darkMode",
+        value: settings.darkMode,
+      });
+
+      darkModeRequest.onsuccess = () => {
+        console.log("Settings saved to IndexedDB:", settings);
+        resolve();
+      };
+
+      darkModeRequest.onerror = () => {
+        console.error("Failed to save settings:", darkModeRequest.error);
+        reject(darkModeRequest.error);
+      };
+    });
+  }
+
   // --- Theme Management ---
   function setTheme(isDark) {
     if (isDark) {
@@ -56,33 +264,16 @@ document.addEventListener("DOMContentLoaded", () => {
       updateChartTheme();
     }
 
-    // Save preference to localStorage
-    localStorage.setItem("darkMode", isDark);
+    // Save preference to IndexedDB
     darkMode = isDark;
+    saveSettings({ darkMode }).catch(err => {
+      console.error("Failed to save theme setting:", err);
+    });
   }
 
-  // Apply theme on initial load
-  setTheme(darkMode);
+  // Will apply theme after loading settings
 
   // --- Data Persistence ---
-  function loadEntries() {
-    const storedEntries = localStorage.getItem("learningEntries");
-    if (storedEntries) {
-      entries = JSON.parse(storedEntries);
-      // Ensure hours are numbers
-      entries.forEach(entry => (entry.hours = parseFloat(entry.hours)));
-    } else {
-      entries = [];
-    }
-    console.log("Loaded entries:", entries);
-  }
-
-  function saveEntries() {
-    localStorage.setItem("learningEntries", JSON.stringify(entries));
-    console.log("Saved entries:", entries);
-  }
-
-  // Update chart colors based on current theme
   function updateChartTheme() {
     if (!chartInstance) return;
 
@@ -493,7 +684,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update the entry's description if we're editing an entry
     if (currentlyEditingIndex !== null && entries[currentlyEditingIndex]) {
       entries[currentlyEditingIndex].description = newTitle;
-      saveEntries(); // Save to localStorage
+      saveEntries().catch(err => {
+        console.error("Failed to save title change:", err);
+      }); // Save to IndexedDB
     }
 
     // Replace the input with the new text
@@ -514,7 +707,9 @@ document.addEventListener("DOMContentLoaded", () => {
       newDate
     ) {
       entries[currentlyEditingIndex].date = newDate;
-      saveEntries(); // Save to localStorage
+      saveEntries().catch(err => {
+        console.error("Failed to save date change:", err);
+      }); // Save to IndexedDB
     }
 
     // Replace the input with the new text (formatted date)
@@ -666,9 +861,15 @@ document.addEventListener("DOMContentLoaded", () => {
       entries[currentlyEditingIndex]
     );
 
-    saveEntries();
-    showMainView(); // This will also destroy the EasyMDE instance
-    renderAll();
+    saveEntries()
+      .then(() => {
+        showMainView(); // This will also destroy the EasyMDE instance
+        renderAll();
+      })
+      .catch(err => {
+        console.error("Failed to save notes:", err);
+        alert("Failed to save notes. Please try again.");
+      });
   }
 
   function handleCancelEdit() {
@@ -715,9 +916,17 @@ document.addEventListener("DOMContentLoaded", () => {
     entries.push(newEntry);
     console.log("Added new entry:", newEntry);
 
-    saveEntries();
-    renderAll();
-    hideAddEntryForm();
+    saveEntries()
+      .then(() => {
+        renderAll();
+        hideAddEntryForm();
+      })
+      .catch(err => {
+        console.error("Failed to save new entry:", err);
+        alert("Failed to save entry. Please try again.");
+        // Remove the entry from local array if save failed
+        entries.pop();
+      });
   }
 
   function handleDeleteEntry(event) {
@@ -743,9 +952,19 @@ document.addEventListener("DOMContentLoaded", () => {
       )
     ) {
       console.log("Deleting entry at index:", indexToDelete, entryToDelete);
-      entries.splice(indexToDelete, 1);
-      saveEntries();
-      renderAll();
+      const deletedEntry = entries.splice(indexToDelete, 1)[0];
+
+      saveEntries()
+        .then(() => {
+          renderAll();
+        })
+        .catch(err => {
+          console.error("Failed to delete entry:", err);
+          alert("Failed to delete entry. Please try again.");
+          // Restore the entry if delete failed
+          entries.splice(indexToDelete, 0, deletedEntry);
+          renderAll();
+        });
     }
   }
 
@@ -844,11 +1063,40 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  loadEntries();
-  showMainView(); // Ensure main view is shown initially
-  renderAll(); // Initial render on page load
+  // Initialize the application
+  async function initializeApp() {
+    try {
+      // Initialize IndexedDB first
+      await initDB();
 
-  console.log("10k Hours Tracker initialized.");
+      // Load settings and apply theme
+      const settings = await loadSettings();
+      darkMode = settings.darkMode;
+      setTheme(darkMode);
+
+      // Load entries
+      await loadEntries();
+
+      // Show main view and render
+      showMainView();
+      renderAll();
+
+      console.log("10k Hours Tracker initialized successfully with IndexedDB.");
+    } catch (error) {
+      console.error("Failed to initialize app:", error);
+      alert(
+        "Failed to initialize the application. Some features may not work properly."
+      );
+
+      // Fallback: continue with empty data
+      entries = [];
+      showMainView();
+      renderAll();
+    }
+  }
+
+  // Start the application
+  initializeApp();
 
   // Handle clicks on table cells for inline editing
   function handleCellClick(event) {
@@ -1015,10 +1263,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Save changes
-    saveEntries();
-
-    // Refresh the table to show updated values
-    renderAll();
+    saveEntries()
+      .then(() => {
+        // Refresh the table to show updated values
+        renderAll();
+      })
+      .catch(err => {
+        console.error("Failed to save inline edit:", err);
+        alert("Failed to save changes. Please try again.");
+        // Refresh to restore original values
+        renderAll();
+      });
   }
 
   function cancelInlineEdit(cell, originalContent) {
