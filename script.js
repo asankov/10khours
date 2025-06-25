@@ -12,6 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const cancelAddFormBtn = document.getElementById("cancel-add-form-btn");
   const settingsBtn = document.getElementById("settings-btn");
   const settingsDropdown = document.getElementById("settings-dropdown");
+  const projectBtn = document.getElementById("project-btn");
+  const projectDropdown = document.getElementById("project-dropdown");
+  const currentProjectName = document.getElementById("current-project-name");
+  const projectList = document.getElementById("project-list");
+  const createProjectBtn = document.getElementById("create-project-btn");
   const importBtn = document.getElementById("import-btn");
   const importFileInput = document.getElementById("import-file-input");
   const exportBtn = document.getElementById("export-btn");
@@ -38,6 +43,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentlyEditingIndex = null; // Index of the entry being edited
   let easyMDEInstance = null; // To hold the EasyMDE editor instance
+  let currentProjectId = "default"; // Current active project
+  let projects = {}; // Store all projects data
 
   // Add check for marked library after variable declarations
   console.log(
@@ -49,9 +56,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- IndexedDB Management ---
   let db = null;
   const DB_NAME = "LearningTrackerDB";
-  const DB_VERSION = 1;
+  const DB_VERSION = 2; // Increased version for project support
   const STORE_NAME = "entries";
   const SETTINGS_STORE = "settings";
+  const PROJECTS_STORE = "projects";
 
   // Initialize IndexedDB
   function initDB() {
@@ -72,7 +80,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       request.onupgradeneeded = event => {
         db = event.target.result;
-        console.log("Upgrading IndexedDB schema...");
+        const oldVersion = event.oldVersion;
+        console.log(
+          `Upgrading IndexedDB schema from version ${oldVersion} to ${DB_VERSION}...`
+        );
 
         // Create entries store
         if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -85,6 +96,16 @@ document.addEventListener("DOMContentLoaded", () => {
           entriesStore.createIndex("description", "description", {
             unique: false,
           });
+          entriesStore.createIndex("projectId", "projectId", { unique: false });
+        } else if (oldVersion < 2) {
+          // Add projectId index to existing entries store
+          const transaction = event.target.transaction;
+          const entriesStore = transaction.objectStore(STORE_NAME);
+          if (!entriesStore.indexNames.contains("projectId")) {
+            entriesStore.createIndex("projectId", "projectId", {
+              unique: false,
+            });
+          }
         }
 
         // Create settings store
@@ -94,43 +115,81 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
 
+        // Create projects store
+        if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
+          const projectsStore = db.createObjectStore(PROJECTS_STORE, {
+            keyPath: "id",
+          });
+        }
+
         console.log("IndexedDB schema created/updated");
       };
     });
   }
 
-  // Load entries from IndexedDB
+  // Load entries from IndexedDB for current project
   function loadEntries() {
     return new Promise((resolve, reject) => {
       if (!dbReady || !db) {
         console.warn("Database not ready, waiting...");
-        // If DB not ready, resolve with empty array and try to init
         resolve([]);
         return;
       }
 
       const transaction = db.transaction([STORE_NAME], "readonly");
       const store = transaction.objectStore(STORE_NAME);
-      const request = store.getAll();
 
-      request.onsuccess = () => {
-        const loadedEntries = request.result || [];
-        // Ensure hours are numbers and remove the auto-generated id for our array
-        entries = loadedEntries.map(entry => ({
-          date: entry.date,
-          description: entry.description,
-          hours: parseFloat(entry.hours),
-          notes: entry.notes,
-          _id: entry.id, // Keep original ID for updates
-        }));
-        console.log("Loaded entries from IndexedDB:", entries);
-        resolve(entries);
-      };
+      // If we have project support, filter by project ID
+      if (store.indexNames.contains("projectId")) {
+        const index = store.index("projectId");
+        const request = index.getAll(currentProjectId);
 
-      request.onerror = () => {
-        console.error("Failed to load entries:", request.error);
-        reject(request.error);
-      };
+        request.onsuccess = () => {
+          const loadedEntries = request.result || [];
+          entries = loadedEntries.map(entry => ({
+            date: entry.date,
+            description: entry.description,
+            hours: parseFloat(entry.hours),
+            notes: entry.notes,
+            _id: entry.id,
+          }));
+          console.log(
+            `Loaded ${entries.length} entries for project ${currentProjectId}:`,
+            entries
+          );
+          resolve(entries);
+        };
+
+        request.onerror = () => {
+          console.error("Failed to load entries:", request.error);
+          reject(request.error);
+        };
+      } else {
+        // Backward compatibility - load all entries and assign to default project
+        const request = store.getAll();
+
+        request.onsuccess = () => {
+          const loadedEntries = request.result || [];
+          entries = loadedEntries
+            .filter(
+              entry => !entry.projectId || entry.projectId === currentProjectId
+            )
+            .map(entry => ({
+              date: entry.date,
+              description: entry.description,
+              hours: parseFloat(entry.hours),
+              notes: entry.notes,
+              _id: entry.id,
+            }));
+          console.log("Loaded entries (backward compatibility):", entries);
+          resolve(entries);
+        };
+
+        request.onerror = () => {
+          console.error("Failed to load entries:", request.error);
+          reject(request.error);
+        };
+      }
     });
   }
 
@@ -161,12 +220,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         entries.forEach((entry, index) => {
-          // Create a clean entry without the internal _id
+          // Create a clean entry without the internal _id but with projectId
           const cleanEntry = {
             date: entry.date,
             description: entry.description,
             hours: entry.hours,
             notes: entry.notes,
+            projectId: currentProjectId,
           };
 
           const addRequest = store.add(cleanEntry);
@@ -201,24 +261,36 @@ document.addEventListener("DOMContentLoaded", () => {
     return new Promise((resolve, reject) => {
       if (!dbReady || !db) {
         console.warn("Database not ready for settings");
-        resolve({ darkMode: false }); // Default settings
+        resolve({ darkMode: false, currentProject: "default" });
         return;
       }
 
       const transaction = db.transaction([SETTINGS_STORE], "readonly");
       const store = transaction.objectStore(SETTINGS_STORE);
-      const request = store.get("darkMode");
+
+      // Load all settings
+      const request = store.getAll();
 
       request.onsuccess = () => {
-        const setting = request.result;
-        const darkModeValue = setting ? setting.value : false;
-        console.log("Loaded dark mode setting:", darkModeValue);
-        resolve({ darkMode: darkModeValue });
+        const settings = request.result || [];
+        const settingsMap = {};
+
+        settings.forEach(setting => {
+          settingsMap[setting.key] = setting.value;
+        });
+
+        const result = {
+          darkMode: settingsMap.darkMode || false,
+          currentProject: settingsMap.currentProject || "default",
+        };
+
+        console.log("Loaded settings:", result);
+        resolve(result);
       };
 
       request.onerror = () => {
         console.error("Failed to load settings:", request.error);
-        resolve({ darkMode: false }); // Fallback to default
+        resolve({ darkMode: false, currentProject: "default" });
       };
     });
   }
@@ -235,22 +307,165 @@ document.addEventListener("DOMContentLoaded", () => {
       const transaction = db.transaction([SETTINGS_STORE], "readwrite");
       const store = transaction.objectStore(SETTINGS_STORE);
 
-      // Save dark mode setting
-      const darkModeRequest = store.put({
-        key: "darkMode",
-        value: settings.darkMode,
-      });
+      // Save all settings
+      const settingsKeys = Object.keys(settings);
+      let saveCount = 0;
 
-      darkModeRequest.onsuccess = () => {
-        console.log("Settings saved to IndexedDB:", settings);
-        resolve();
+      settingsKeys.forEach(key => {
+        const request = store.put({
+          key: key,
+          value: settings[key],
+        });
+
+        request.onsuccess = () => {
+          saveCount++;
+          if (saveCount === settingsKeys.length) {
+            console.log("Settings saved to IndexedDB:", settings);
+            resolve();
+          }
+        };
+
+        request.onerror = () => {
+          console.error(`Failed to save setting ${key}:`, request.error);
+          reject(request.error);
+        };
+      });
+    });
+  }
+
+  // --- Project Management ---
+  // Load all projects from IndexedDB
+  async function loadProjects() {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready for projects");
+        resolve({});
+        return;
+      }
+
+      const transaction = db.transaction([PROJECTS_STORE], "readonly");
+      const store = transaction.objectStore(PROJECTS_STORE);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const projectsArray = request.result || [];
+        const projectsMap = {};
+
+        projectsArray.forEach(project => {
+          projectsMap[project.id] = project;
+        });
+
+        // Ensure default project exists
+        if (!projectsMap["default"]) {
+          projectsMap["default"] = {
+            id: "default",
+            name: "Default",
+            createdAt: new Date().toISOString(),
+          };
+        }
+
+        console.log("Loaded projects:", projectsMap);
+        resolve(projectsMap);
       };
 
-      darkModeRequest.onerror = () => {
-        console.error("Failed to save settings:", darkModeRequest.error);
-        reject(darkModeRequest.error);
+      request.onerror = () => {
+        console.error("Failed to load projects:", request.error);
+        reject(request.error);
       };
     });
+  }
+
+  // Save projects to IndexedDB
+  async function saveProjects(projectsData) {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready, cannot save projects");
+        reject(new Error("Database not ready"));
+        return;
+      }
+
+      const transaction = db.transaction([PROJECTS_STORE], "readwrite");
+      const store = transaction.objectStore(PROJECTS_STORE);
+
+      // Clear and add all projects
+      const clearRequest = store.clear();
+
+      clearRequest.onsuccess = () => {
+        const projectIds = Object.keys(projectsData);
+        let addCount = 0;
+
+        if (projectIds.length === 0) {
+          resolve();
+          return;
+        }
+
+        projectIds.forEach(projectId => {
+          const addRequest = store.add(projectsData[projectId]);
+
+          addRequest.onsuccess = () => {
+            addCount++;
+            if (addCount === projectIds.length) {
+              console.log("All projects saved to IndexedDB");
+              resolve();
+            }
+          };
+
+          addRequest.onerror = () => {
+            console.error("Failed to save project:", addRequest.error);
+            reject(addRequest.error);
+          };
+        });
+      };
+
+      clearRequest.onerror = () => {
+        console.error("Failed to clear projects:", clearRequest.error);
+        reject(clearRequest.error);
+      };
+    });
+  }
+
+  // Create a new project
+  async function createProject(name) {
+    const projectId = `project_${Date.now()}`;
+    const newProject = {
+      id: projectId,
+      name: name.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    projects[projectId] = newProject;
+    await saveProjects(projects);
+
+    return projectId;
+  }
+
+  // Switch to a different project
+  async function switchProject(projectId) {
+    if (!projects[projectId]) {
+      console.error("Project not found:", projectId);
+      return;
+    }
+
+    // Save current project's entries
+    if (entries.length > 0) {
+      await saveEntries();
+    }
+
+    // Switch to new project
+    currentProjectId = projectId;
+    currentProjectName.textContent = projects[projectId].name;
+
+    // Load new project's entries
+    await loadEntries();
+    renderAll();
+
+    // Save current project setting
+    await saveSettings({
+      darkMode: darkMode,
+      currentProject: currentProjectId,
+    });
+
+    console.log("Switched to project:", projects[projectId].name);
   }
 
   // --- Theme Management ---
@@ -987,13 +1202,131 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsDropdown.classList.add("hidden");
   }
 
-  // Close dropdown when clicking outside
+  // --- Project Dropdown ---
+  function toggleProjectDropdown() {
+    projectDropdown.classList.toggle("hidden");
+    if (!projectDropdown.classList.contains("hidden")) {
+      renderProjectDropdown();
+    }
+  }
+
+  function hideProjectDropdown() {
+    projectDropdown.classList.add("hidden");
+  }
+
+  function renderProjectDropdown() {
+    projectList.innerHTML = "";
+
+    Object.values(projects).forEach(project => {
+      const projectItem = document.createElement("button");
+      projectItem.className = `project-item ${
+        project.id === currentProjectId ? "active" : ""
+      }`;
+      projectItem.innerHTML = `
+        <span>${project.name}</span>
+        ${
+          project.id !== "default"
+            ? '<span class="project-delete" onclick="event.stopPropagation(); deleteProject(\'' +
+              project.id +
+              "')\">🗑️</span>"
+            : ""
+        }
+      `;
+      projectItem.addEventListener("click", () => {
+        if (project.id !== currentProjectId) {
+          switchProject(project.id);
+        }
+        hideProjectDropdown();
+      });
+      projectList.appendChild(projectItem);
+    });
+  }
+
+  async function handleCreateProject() {
+    hideProjectDropdown();
+
+    const projectName = prompt("Enter project name:");
+    if (!projectName || !projectName.trim()) {
+      return;
+    }
+
+    try {
+      const newProjectId = await createProject(projectName);
+      await switchProject(newProjectId);
+      console.log("Created and switched to new project:", projectName);
+    } catch (error) {
+      console.error("Failed to create project:", error);
+      alert("Failed to create project. Please try again.");
+    }
+  }
+
+  async function deleteProject(projectId) {
+    if (projectId === "default") {
+      alert("Cannot delete the default project.");
+      return;
+    }
+
+    if (projectId === currentProjectId) {
+      alert(
+        "Cannot delete the currently active project. Switch to another project first."
+      );
+      return;
+    }
+
+    const project = projects[projectId];
+    if (
+      !confirm(
+        `Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      // Delete project
+      delete projects[projectId];
+      await saveProjects(projects);
+
+      // Also delete all entries for this project
+      if (dbReady && db) {
+        const transaction = db.transaction([STORE_NAME], "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+
+        if (store.indexNames.contains("projectId")) {
+          const index = store.index("projectId");
+          const request = index.getAllKeys(projectId);
+
+          request.onsuccess = () => {
+            const keys = request.result;
+            keys.forEach(key => {
+              store.delete(key);
+            });
+          };
+        }
+      }
+
+      console.log("Deleted project:", project.name);
+      hideProjectDropdown();
+    } catch (error) {
+      console.error("Failed to delete project:", error);
+      alert("Failed to delete project. Please try again.");
+    }
+  }
+
+  // Close dropdowns when clicking outside
   function handleDocumentClick(event) {
     if (
       !settingsBtn.contains(event.target) &&
       !settingsDropdown.contains(event.target)
     ) {
       hideSettingsDropdown();
+    }
+
+    if (
+      !projectBtn.contains(event.target) &&
+      !projectDropdown.contains(event.target)
+    ) {
+      hideProjectDropdown();
     }
   }
 
@@ -1216,6 +1549,8 @@ document.addEventListener("DOMContentLoaded", () => {
   showAddFormBtn.addEventListener("click", showAddEntryForm);
   cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
   settingsBtn.addEventListener("click", toggleSettingsDropdown);
+  projectBtn.addEventListener("click", toggleProjectDropdown);
+  createProjectBtn.addEventListener("click", handleCreateProject);
   importBtn.addEventListener("click", handleImport);
   importFileInput.addEventListener("change", handleFileImport);
   exportBtn.addEventListener("click", handleExport);
@@ -1223,7 +1558,7 @@ document.addEventListener("DOMContentLoaded", () => {
   saveNoteBtn.addEventListener("click", handleSaveNote);
   cancelEditBtn.addEventListener("click", handleCancelEdit);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   document.addEventListener("click", handleDocumentClick);
 
   // Theme toggle event listener
@@ -1239,19 +1574,50 @@ document.addEventListener("DOMContentLoaded", () => {
       // Initialize IndexedDB first
       await initDB();
 
+      // Load projects
+      projects = await loadProjects();
+
+      // Ensure default project exists and save if needed
+      if (!projects["default"]) {
+        projects["default"] = {
+          id: "default",
+          name: "Default",
+          createdAt: new Date().toISOString(),
+        };
+        await saveProjects(projects);
+      }
+
       // Load settings and apply theme
       const settings = await loadSettings();
       darkMode = settings.darkMode;
+      currentProjectId = settings.currentProject || "default";
+
+      // Ensure current project exists
+      if (!projects[currentProjectId]) {
+        currentProjectId = "default";
+        await saveSettings({
+          darkMode: darkMode,
+          currentProject: currentProjectId,
+        });
+      }
+
+      // Update UI
+      currentProjectName.textContent = projects[currentProjectId].name;
       setTheme(darkMode);
 
-      // Load entries
+      // Migrate legacy data to default project if needed
+      await migrateLegacyData();
+
+      // Load entries for current project
       await loadEntries();
 
       // Show main view and render
       showMainView();
       renderAll();
 
-      console.log("10k Hours Tracker initialized successfully with IndexedDB.");
+      console.log(
+        "10k Hours Tracker initialized successfully with multi-project support."
+      );
     } catch (error) {
       console.error("Failed to initialize app:", error);
       alert(
@@ -1265,8 +1631,43 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Migrate legacy data (entries without projectId) to default project
+  async function migrateLegacyData() {
+    if (!dbReady || !db) return;
+
+    const transaction = db.transaction([STORE_NAME], "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+
+    // Check if we have the projectId index
+    if (!store.indexNames.contains("projectId")) {
+      return; // No migration needed for very old versions
+    }
+
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const allEntries = request.result || [];
+      let migrationNeeded = false;
+
+      allEntries.forEach(entry => {
+        if (!entry.projectId) {
+          entry.projectId = "default";
+          migrationNeeded = true;
+          store.put(entry);
+        }
+      });
+
+      if (migrationNeeded) {
+        console.log("Migrated legacy entries to default project");
+      }
+    };
+  }
+
   // Start the application
   initializeApp();
+
+  // Make deleteProject globally accessible for inline onclick
+  window.deleteProject = deleteProject;
 
   // Handle clicks on table cells for inline editing
   function handleCellClick(event) {

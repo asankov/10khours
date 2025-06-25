@@ -484,13 +484,145 @@
         .dropdown-item .btn-icon {
             margin-right: 0.5rem;
         }
+
+        /* Project selector styles */
+        .project-selector {
+            position: relative;
+        }
+
+        .project-button {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background-color: var(--light-gray);
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            color: var(--text-color);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .project-button:hover {
+            background-color: var(--medium-gray);
+        }
+
+        .project-arrow {
+            margin-left: 0.5rem;
+            font-size: 0.75rem;
+            transition: transform 0.2s ease;
+        }
+
+        .project-button:not(.hidden)+.project-dropdown:not(.hidden) .project-arrow {
+            transform: rotate(180deg);
+        }
+
+        .project-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 1000;
+            min-width: 200px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            margin-top: 0.25rem;
+            overflow: hidden;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .project-dropdown.hidden {
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+        }
+
+        .project-dropdown:not(.hidden) {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .project-item,
+        .create-project-item {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            font-size: 0.875rem;
+        }
+
+        .project-item:hover,
+        .create-project-item:hover {
+            background-color: var(--light-gray);
+        }
+
+        .project-item.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .project-item.active:hover {
+            background-color: var(--primary-color);
+            opacity: 0.9;
+        }
+
+        .create-project-item {
+            border-top: 1px solid var(--medium-gray);
+            font-weight: 500;
+        }
+
+        .create-project-item .btn-icon {
+            margin-right: 0.5rem;
+        }
+
+        .project-item .project-delete {
+            margin-left: auto;
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 0.75rem;
+            padding: 0.25rem;
+            border-radius: 0.25rem;
+        }
+
+        .project-item:hover .project-delete {
+            opacity: 1;
+        }
+
+        .project-delete:hover {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
     </style>
 </head>
 
 <body>
     <!-- Site Header -->
     <header class="site-header">
-        <a href="#" class="site-title">10K Hours Tracker</a>
+        <div class="site-branding flex items-center">
+            <a href="#" class="site-title">10K Hours Tracker</a>
+            <div class="project-selector relative ml-4">
+                <button id="project-btn" class="project-button">
+                    <span id="current-project-name">Default</span>
+                    <span class="project-arrow">▼</span>
+                </button>
+                <div id="project-dropdown" class="project-dropdown hidden">
+                    <div id="project-list">
+                        <!-- Projects will be populated here -->
+                    </div>
+                    <button id="create-project-btn" class="create-project-item">
+                        <span class="btn-icon">+</span> Create New Project
+                    </button>
+                </div>
+            </div>
+        </div>
         <div class="auth-links flex items-center">
             <!-- Dark Mode Toggle -->
             <div class="dark-mode-toggle flex items-center mr-4">
