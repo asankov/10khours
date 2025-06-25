@@ -31,7 +31,7 @@
             --header-bg: white;
             --form-bg: #f9fafb;
         }
-        
+
         /* Dark mode variables */
         [data-theme="dark"] {
             --primary-color: #6366f1;
@@ -393,7 +393,7 @@
             background: linear-gradient(to right, rgba(255, 255, 255, 0), var(--card-bg));
             pointer-events: none;
         }
-        
+
         [data-theme="dark"] .notes-preview::after {
             background: linear-gradient(to right, rgba(31, 41, 55, 0), var(--card-bg));
         }
@@ -489,13 +489,19 @@
                         <h2 class="text-xl font-semibold">Learning Entries</h2>
                         <p class="text-sm text-gray-500">Track your learning journey with detailed entries</p>
                     </div>
-                    <button id="show-add-form-btn" class="btn btn-primary" style="background-color: black;">
-                        <span class="btn-icon">+</span> Add Entry
-                    </button>
+                    <div class="flex space-x-2">
+                        <button id="export-btn" class="btn btn-secondary">
+                            <span class="btn-icon">📥</span> Export
+                        </button>
+                        <button id="show-add-form-btn" class="btn btn-primary" style="background-color: black;">
+                            <span class="btn-icon">+</span> Add Entry
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Add Entry Form (Initially Hidden) -->
-                <div id="add-entry-form-container" class="hidden border-t border-gray-200 p-4" style="background-color: var(--form-bg);">
+                <div id="add-entry-form-container" class="hidden border-t border-gray-200 p-4"
+                    style="background-color: var(--form-bg);">
                     <form id="add-entry-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div class="form-group md:col-span-2">
                             <label for="description" class="form-label">Description</label>
