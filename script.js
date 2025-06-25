@@ -1217,17 +1217,20 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderProjectDropdown() {
     projectList.innerHTML = "";
 
+    const hasMultipleProjects = Object.keys(projects).length > 1;
+
     Object.values(projects).forEach(project => {
       const projectItem = document.createElement("button");
       projectItem.className = `project-item ${
         project.id === currentProjectId ? "active" : ""
       }`;
 
-      const projectActions =
-        project.id !== "default"
-          ? `<span class="project-rename" onclick="event.stopPropagation(); renameProject('${project.id}')">✏️</span>
-           <span class="project-delete" onclick="event.stopPropagation(); deleteProject('${project.id}')">🗑️</span>`
-          : `<span class="project-rename" onclick="event.stopPropagation(); renameProject('${project.id}')">✏️</span>`;
+      const deleteButton = hasMultipleProjects
+        ? `<span class="project-delete" onclick="event.stopPropagation(); deleteProject('${project.id}')">🗑️</span>`
+        : "";
+
+      const projectActions = `<span class="project-rename" onclick="event.stopPropagation(); renameProject('${project.id}')">✏️</span>
+           ${deleteButton}`;
 
       projectItem.innerHTML = `
         <span class="project-name">${project.name}</span>
@@ -1306,11 +1309,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function deleteProject(projectId) {
-    if (projectId === "default") {
-      alert("Cannot delete the default project.");
-      return;
-    }
-
     const project = projects[projectId];
     if (
       !confirm(
