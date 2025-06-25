@@ -10,6 +10,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const addEntryContainer = document.getElementById("add-entry-form-container");
   const showAddFormBtn = document.getElementById("show-add-form-btn");
   const cancelAddFormBtn = document.getElementById("cancel-add-form-btn");
+  const settingsBtn = document.getElementById("settings-btn");
+  const settingsDropdown = document.getElementById("settings-dropdown");
   const importBtn = document.getElementById("import-btn");
   const importFileInput = document.getElementById("import-file-input");
   const exportBtn = document.getElementById("export-btn");
@@ -976,8 +978,30 @@ document.addEventListener("DOMContentLoaded", () => {
     renderChart();
   }
 
+  // --- Settings Dropdown ---
+  function toggleSettingsDropdown() {
+    settingsDropdown.classList.toggle("hidden");
+  }
+
+  function hideSettingsDropdown() {
+    settingsDropdown.classList.add("hidden");
+  }
+
+  // Close dropdown when clicking outside
+  function handleDocumentClick(event) {
+    if (
+      !settingsBtn.contains(event.target) &&
+      !settingsDropdown.contains(event.target)
+    ) {
+      hideSettingsDropdown();
+    }
+  }
+
   // --- Export Functionality ---
   function handleExport() {
+    // Close dropdown
+    hideSettingsDropdown();
+
     try {
       // Get all data from localStorage
       const learningEntries = localStorage.getItem("learningEntries");
@@ -1037,6 +1061,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Import Functionality ---
   function handleImport() {
+    // Close dropdown
+    hideSettingsDropdown();
     // Trigger file input click
     importFileInput.click();
   }
@@ -1189,12 +1215,16 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", handleAddEntry);
   showAddFormBtn.addEventListener("click", showAddEntryForm);
   cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
+  settingsBtn.addEventListener("click", toggleSettingsDropdown);
   importBtn.addEventListener("click", handleImport);
   importFileInput.addEventListener("change", handleFileImport);
   exportBtn.addEventListener("click", handleExport);
   chartTypeToggle.addEventListener("change", handleChartTypeToggle);
   saveNoteBtn.addEventListener("click", handleSaveNote);
   cancelEditBtn.addEventListener("click", handleCancelEdit);
+
+  // Close dropdown when clicking outside
+  document.addEventListener("click", handleDocumentClick);
 
   // Theme toggle event listener
   if (themeToggle) {

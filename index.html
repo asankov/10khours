@@ -431,6 +431,59 @@
             outline: none;
             box-shadow: 0 0 0 2px rgba(92, 92, 95, 0.2);
         }
+
+        /* Settings dropdown styles */
+        .settings-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            z-index: 1000;
+            min-width: 150px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            margin-top: 0.25rem;
+            overflow: hidden;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .settings-dropdown.hidden {
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+        }
+
+        .settings-dropdown:not(.hidden) {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .dropdown-item {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            background: none;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            font-size: 0.875rem;
+        }
+
+        .dropdown-item:hover {
+            background-color: var(--light-gray);
+        }
+
+        .dropdown-item:not(:last-child) {
+            border-bottom: 1px solid var(--medium-gray);
+        }
+
+        .dropdown-item .btn-icon {
+            margin-right: 0.5rem;
+        }
     </style>
 </head>
 
@@ -448,6 +501,24 @@
                 </label>
                 <span class="text-sm ml-2">🌙</span>
             </div>
+
+            <!-- Settings Dropdown -->
+            <div class="relative mr-4">
+                <button id="settings-btn" class="btn btn-secondary">
+                    <span class="btn-icon">⚙️</span>
+                </button>
+                <div id="settings-dropdown" class="settings-dropdown hidden">
+                    <button id="export-btn" class="dropdown-item">
+                        <span class="btn-icon">📥</span> Export Data
+                    </button>
+                    <button id="import-btn" class="dropdown-item">
+                        <span class="btn-icon">📤</span> Import Data
+                    </button>
+                </div>
+                <!-- Hidden file input for import -->
+                <input type="file" id="import-file-input" accept=".json" style="display: none;">
+            </div>
+
             <a href="#" class="btn btn-secondary">Sign in</a>
             <a href="#" class="btn btn-primary">Sign up</a>
         </div>
@@ -489,19 +560,9 @@
                         <h2 class="text-xl font-semibold">Learning Entries</h2>
                         <p class="text-sm text-gray-500">Track your learning journey with detailed entries</p>
                     </div>
-                    <div class="flex space-x-2">
-                        <button id="import-btn" class="btn btn-secondary">
-                            <span class="btn-icon">📤</span> Import
-                        </button>
-                        <button id="export-btn" class="btn btn-secondary">
-                            <span class="btn-icon">📥</span> Export
-                        </button>
-                        <button id="show-add-form-btn" class="btn btn-primary" style="background-color: black;">
-                            <span class="btn-icon">+</span> Add Entry
-                        </button>
-                    </div>
-                    <!-- Hidden file input for import -->
-                    <input type="file" id="import-file-input" accept=".json" style="display: none;">
+                    <button id="show-add-form-btn" class="btn btn-primary" style="background-color: black;">
+                        <span class="btn-icon">+</span> Add Entry
+                    </button>
                 </div>
 
                 <!-- Add Entry Form (Initially Hidden) -->
