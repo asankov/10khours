@@ -10,6 +10,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const addEntryContainer = document.getElementById("add-entry-form-container");
   const showAddFormBtn = document.getElementById("show-add-form-btn");
   const cancelAddFormBtn = document.getElementById("cancel-add-form-btn");
+  const importBtn = document.getElementById("import-btn");
+  const importFileInput = document.getElementById("import-file-input");
   const exportBtn = document.getElementById("export-btn");
   const descriptionInput = document.getElementById("description");
   const hoursInput = document.getElementById("hours");
@@ -1033,6 +1035,142 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- Import Functionality ---
+  function handleImport() {
+    // Trigger file input click
+    importFileInput.click();
+  }
+
+  async function handleFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) {
+      return;
+    }
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith(".json")) {
+      alert("Please select a valid JSON file.");
+      return;
+    }
+
+    try {
+      // Show loading state
+      const originalText = importBtn.innerHTML;
+      importBtn.innerHTML = '<span class="btn-icon">⏳</span> Importing...';
+      importBtn.disabled = true;
+
+      // Read file content
+      const fileContent = await readFileAsText(file);
+      const importData = JSON.parse(fileContent);
+
+      // Validate import data structure
+      if (!validateImportData(importData)) {
+        throw new Error(
+          "Invalid file format. Please select a valid export file."
+        );
+      }
+
+      // Confirm import (will replace all existing data)
+      const confirmMessage = `This will replace all existing data with the imported data.\n\nImport contains:\n- ${
+        importData.entries?.length || 0
+      } entries\n- ${
+        importData.metadata?.totalHours || 0
+      } total hours\n\nAre you sure you want to continue?`;
+
+      if (!confirm(confirmMessage)) {
+        // Reset button state
+        importBtn.innerHTML = originalText;
+        importBtn.disabled = false;
+        importFileInput.value = ""; // Clear file input
+        return;
+      }
+
+      // Import entries
+      entries = importData.entries.map(entry => ({
+        date: entry.date,
+        description: entry.description,
+        hours: parseFloat(entry.hours),
+        notes: entry.notes,
+      }));
+
+      // Save entries to IndexedDB
+      await saveEntries();
+
+      // Import settings if available
+      if (importData.settings) {
+        await saveSettings(importData.settings);
+        // Apply dark mode setting immediately
+        if (importData.settings.darkMode !== undefined) {
+          darkMode = importData.settings.darkMode;
+          setTheme(darkMode);
+        }
+      }
+
+      // Refresh the UI
+      renderAll();
+
+      console.log("Import completed successfully:", {
+        entriesImported: entries.length,
+        totalHours: entries.reduce((sum, entry) => sum + entry.hours, 0),
+      });
+
+      // Show success message
+      importBtn.innerHTML = '<span class="btn-icon">✅</span> Imported!';
+
+      setTimeout(() => {
+        importBtn.innerHTML = originalText;
+        importBtn.disabled = false;
+      }, 2000);
+    } catch (error) {
+      console.error("Import failed:", error);
+      alert(`Failed to import data: ${error.message}`);
+
+      // Reset button state
+      const originalText = importBtn.innerHTML;
+      importBtn.innerHTML = originalText;
+      importBtn.disabled = false;
+    } finally {
+      // Clear file input
+      importFileInput.value = "";
+    }
+  }
+
+  // Helper function to read file as text
+  function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsText(file);
+    });
+  }
+
+  // Helper function to validate import data structure
+  function validateImportData(data) {
+    // Check if data has the expected structure
+    if (!data || typeof data !== "object") {
+      return false;
+    }
+
+    // Check if entries array exists and is valid
+    if (!Array.isArray(data.entries)) {
+      return false;
+    }
+
+    // Validate each entry has required fields
+    for (const entry of data.entries) {
+      if (
+        !entry.date ||
+        !entry.description ||
+        typeof entry.hours !== "number"
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   // --- Initialization ---
   function renderAll() {
     // Only render main view components if not editing
@@ -1051,6 +1189,8 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", handleAddEntry);
   showAddFormBtn.addEventListener("click", showAddEntryForm);
   cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
+  importBtn.addEventListener("click", handleImport);
+  importFileInput.addEventListener("change", handleFileImport);
   exportBtn.addEventListener("click", handleExport);
   chartTypeToggle.addEventListener("change", handleChartTypeToggle);
   saveNoteBtn.addEventListener("click", handleSaveNote);

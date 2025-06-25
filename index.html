@@ -490,6 +490,9 @@
                         <p class="text-sm text-gray-500">Track your learning journey with detailed entries</p>
                     </div>
                     <div class="flex space-x-2">
+                        <button id="import-btn" class="btn btn-secondary">
+                            <span class="btn-icon">📤</span> Import
+                        </button>
                         <button id="export-btn" class="btn btn-secondary">
                             <span class="btn-icon">📥</span> Export
                         </button>
@@ -497,6 +500,8 @@
                             <span class="btn-icon">+</span> Add Entry
                         </button>
                     </div>
+                    <!-- Hidden file input for import -->
+                    <input type="file" id="import-file-input" accept=".json" style="display: none;">
                 </div>
 
                 <!-- Add Entry Form (Initially Hidden) -->
