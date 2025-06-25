@@ -1222,16 +1222,18 @@ document.addEventListener("DOMContentLoaded", () => {
       projectItem.className = `project-item ${
         project.id === currentProjectId ? "active" : ""
       }`;
+
+      const projectActions =
+        project.id !== "default"
+          ? `<span class="project-rename" onclick="event.stopPropagation(); renameProject('${project.id}')">✏️</span>
+           <span class="project-delete" onclick="event.stopPropagation(); deleteProject('${project.id}')">🗑️</span>`
+          : `<span class="project-rename" onclick="event.stopPropagation(); renameProject('${project.id}')">✏️</span>`;
+
       projectItem.innerHTML = `
-        <span>${project.name}</span>
-        ${
-          project.id !== "default"
-            ? '<span class="project-delete" onclick="event.stopPropagation(); deleteProject(\'' +
-              project.id +
-              "')\">🗑️</span>"
-            : ""
-        }
+        <span class="project-name">${project.name}</span>
+        <span class="project-actions">${projectActions}</span>
       `;
+
       projectItem.addEventListener("click", () => {
         if (project.id !== currentProjectId) {
           switchProject(project.id);
@@ -1257,6 +1259,49 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       console.error("Failed to create project:", error);
       alert("Failed to create project. Please try again.");
+    }
+  }
+
+  async function renameProject(projectId) {
+    if (!projects[projectId]) {
+      alert("Project not found.");
+      return;
+    }
+
+    const currentProject = projects[projectId];
+    const newName = prompt(
+      `Rename project "${currentProject.name}" to:`,
+      currentProject.name
+    );
+
+    if (!newName || !newName.trim()) {
+      return; // User cancelled or entered empty name
+    }
+
+    const trimmedName = newName.trim();
+    if (trimmedName === currentProject.name) {
+      return; // No change needed
+    }
+
+    try {
+      // Update project name
+      projects[projectId].name = trimmedName;
+      await saveProjects(projects);
+
+      // Update UI if this is the current project
+      if (projectId === currentProjectId) {
+        currentProjectName.textContent = trimmedName;
+      }
+
+      console.log(`Renamed project ${projectId} to: ${trimmedName}`);
+
+      // Refresh the dropdown to show the new name
+      if (!projectDropdown.classList.contains("hidden")) {
+        renderProjectDropdown();
+      }
+    } catch (error) {
+      console.error("Failed to rename project:", error);
+      alert("Failed to rename project. Please try again.");
     }
   }
 
@@ -1666,7 +1711,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Start the application
   initializeApp();
 
-  // Make deleteProject globally accessible for inline onclick
+  // Make project functions globally accessible for inline onclick
+  window.renameProject = renameProject;
   window.deleteProject = deleteProject;
 
   // Handle clicks on table cells for inline editing
