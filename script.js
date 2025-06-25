@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const addEntryContainer = document.getElementById("add-entry-form-container");
   const showAddFormBtn = document.getElementById("show-add-form-btn");
   const cancelAddFormBtn = document.getElementById("cancel-add-form-btn");
+  const exportBtn = document.getElementById("export-btn");
   const descriptionInput = document.getElementById("description");
   const hoursInput = document.getElementById("hours");
   const dateInput = document.getElementById("date");
@@ -39,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
     typeof marked,
     marked
   );
-  
+
   // --- Theme Management ---
   function setTheme(isDark) {
     if (isDark) {
@@ -49,17 +50,17 @@ document.addEventListener("DOMContentLoaded", () => {
       document.documentElement.removeAttribute("data-theme");
       if (themeToggle) themeToggle.checked = false;
     }
-    
+
     // If chart exists, update it to match the theme
     if (chartInstance) {
       updateChartTheme();
     }
-    
+
     // Save preference to localStorage
     localStorage.setItem("darkMode", isDark);
     darkMode = isDark;
   }
-  
+
   // Apply theme on initial load
   setTheme(darkMode);
 
@@ -80,21 +81,25 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem("learningEntries", JSON.stringify(entries));
     console.log("Saved entries:", entries);
   }
-  
+
   // Update chart colors based on current theme
   function updateChartTheme() {
     if (!chartInstance) return;
-    
-    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-color').trim();
-    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--bg-color').trim();
-    
+
+    const textColor = getComputedStyle(document.documentElement)
+      .getPropertyValue("--text-color")
+      .trim();
+    const bgColor = getComputedStyle(document.documentElement)
+      .getPropertyValue("--bg-color")
+      .trim();
+
     // Update chart text colors
     chartInstance.options.scales.x.ticks.color = textColor;
     chartInstance.options.scales.y.ticks.color = textColor;
     chartInstance.options.scales.x.title.color = textColor;
     chartInstance.options.scales.y.title.color = textColor;
     chartInstance.options.plugins.legend.labels.color = textColor;
-    
+
     // Update the chart
     chartInstance.update();
   }
@@ -189,11 +194,17 @@ document.addEventListener("DOMContentLoaded", () => {
         (useTimeScale ? "time-based" : "evenly-spaced") +
         " scale..."
     );
-    
+
     // Get theme colors
-    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-color').trim() || '#111827';
-    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || '#111827';
-    
+    const textColor =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--text-color")
+        .trim() || "#111827";
+    const primaryColor =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--primary-color")
+        .trim() || "#111827";
+
     // Sort entries by date ascending for the chart
     const sortedEntries = [...entries].sort(
       (a, b) => new Date(a.date) - new Date(b.date)
@@ -243,27 +254,27 @@ document.addEventListener("DOMContentLoaded", () => {
           title: {
             display: false,
             text: "Cumulative Hours",
-            color: textColor
+            color: textColor,
           },
           ticks: {
-            color: textColor
+            color: textColor,
           },
           grid: {
-            color: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-          }
+            color: darkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
+          },
         },
         x: {
           title: {
             display: true,
             text: "Date",
-            color: textColor
+            color: textColor,
           },
           ticks: {
-            color: textColor
+            color: textColor,
           },
           grid: {
-            color: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-          }
+            color: darkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)",
+          },
         },
       },
       responsive: true,
@@ -271,10 +282,10 @@ document.addEventListener("DOMContentLoaded", () => {
       plugins: {
         legend: {
           labels: {
-            color: textColor
-          }
-        }
-      }
+            color: textColor,
+          },
+        },
+      },
     };
 
     // Add time scale specific options if needed
@@ -303,7 +314,9 @@ document.addEventListener("DOMContentLoaded", () => {
             label: "Cumulative Hours Spent",
             data: dataPoints,
             borderColor: primaryColor,
-            backgroundColor: darkMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(17, 24, 39, 0.05)',
+            backgroundColor: darkMode
+              ? "rgba(99, 102, 241, 0.1)"
+              : "rgba(17, 24, 39, 0.05)",
             tension: 0.1,
             fill: true,
           },
@@ -317,7 +330,9 @@ document.addEventListener("DOMContentLoaded", () => {
             label: "Cumulative Hours Spent",
             data: cumulativeHoursData,
             borderColor: primaryColor,
-            backgroundColor: darkMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(17, 24, 39, 0.05)',
+            backgroundColor: darkMode
+              ? "rgba(99, 102, 241, 0.1)"
+              : "rgba(17, 24, 39, 0.05)",
             tension: 0.1,
             fill: true,
           },
@@ -740,6 +755,65 @@ document.addEventListener("DOMContentLoaded", () => {
     renderChart();
   }
 
+  // --- Export Functionality ---
+  function handleExport() {
+    try {
+      // Get all data from localStorage
+      const learningEntries = localStorage.getItem("learningEntries");
+
+      // Create export data object
+      const exportData = {
+        entries: learningEntries ? JSON.parse(learningEntries) : [],
+        metadata: {
+          exportDate: new Date().toISOString(),
+          totalEntries: learningEntries
+            ? JSON.parse(learningEntries).length
+            : 0,
+          totalHours: learningEntries
+            ? JSON.parse(learningEntries)
+                .reduce((sum, entry) => sum + parseFloat(entry.hours), 0)
+                .toFixed(1)
+            : "0",
+        },
+      };
+
+      // Create blob and download
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+
+      // Create download link
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `10k-hours-tracker-export-${
+        new Date().toISOString().split("T")[0]
+      }.json`;
+
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up URL object
+      URL.revokeObjectURL(url);
+
+      console.log("Export completed successfully");
+
+      // Optional: Show success message
+      const originalText = exportBtn.innerHTML;
+      exportBtn.innerHTML = '<span class="btn-icon">✅</span> Exported!';
+      exportBtn.disabled = true;
+
+      setTimeout(() => {
+        exportBtn.innerHTML = originalText;
+        exportBtn.disabled = false;
+      }, 2000);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Failed to export data. Please try again.");
+    }
+  }
+
   // --- Initialization ---
   function renderAll() {
     // Only render main view components if not editing
@@ -758,6 +832,7 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", handleAddEntry);
   showAddFormBtn.addEventListener("click", showAddEntryForm);
   cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
+  exportBtn.addEventListener("click", handleExport);
   chartTypeToggle.addEventListener("change", handleChartTypeToggle);
   saveNoteBtn.addEventListener("click", handleSaveNote);
   cancelEditBtn.addEventListener("click", handleCancelEdit);
