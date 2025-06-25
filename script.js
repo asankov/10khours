@@ -1311,13 +1311,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (projectId === currentProjectId) {
-      alert(
-        "Cannot delete the currently active project. Switch to another project first."
-      );
-      return;
-    }
-
     const project = projects[projectId];
     if (
       !confirm(
@@ -1328,7 +1321,42 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      // Delete project
+      const wasCurrentProject = projectId === currentProjectId;
+
+      // If deleting the current project, we need to switch to another one first
+      if (wasCurrentProject) {
+        // Find another project to switch to (prefer default, then any other)
+        const availableProjects = Object.keys(projects).filter(
+          id => id !== projectId
+        );
+        let targetProjectId = "default";
+
+        // If we're somehow deleting default (shouldn't happen), pick the first available
+        if (projectId === "default" && availableProjects.length > 0) {
+          targetProjectId = availableProjects[0];
+        } else if (availableProjects.length > 0) {
+          // Prefer default, but if it doesn't exist, pick the first available
+          targetProjectId = availableProjects.includes("default")
+            ? "default"
+            : availableProjects[0];
+        }
+
+        // If this is the only project, create a new default before deleting
+        if (availableProjects.length === 0) {
+          projects["default"] = {
+            id: "default",
+            name: "Default",
+            createdAt: new Date().toISOString(),
+          };
+          await saveProjects(projects);
+          targetProjectId = "default";
+        }
+
+        // Switch to the target project first
+        await switchProject(targetProjectId);
+      }
+
+      // Delete project from memory and database
       delete projects[projectId];
       await saveProjects(projects);
 
@@ -1351,6 +1379,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       console.log("Deleted project:", project.name);
+
+      if (wasCurrentProject) {
+        console.log(`Switched to project: ${projects[currentProjectId].name}`);
+      }
+
       hideProjectDropdown();
     } catch (error) {
       console.error("Failed to delete project:", error);
