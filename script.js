@@ -1839,7 +1839,11 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       // If somehow renderAll is called while editing, just ensure table is updated
       // This might happen if an error occurs during save/cancel
-      renderTable();
+      if (activeTab === "entries") {
+        renderTable();
+      } else if (activeTab === "tasks") {
+        renderTasks();
+      }
     }
   }
 
@@ -2148,6 +2152,8 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (tabName === "tasks") {
       tasksTab.classList.add("active");
       tasksContent.classList.remove("hidden");
+      // Always render tasks when switching to tasks tab
+      renderTasks();
     }
   }
 
@@ -2178,7 +2184,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle task deletion
   function handleTaskDelete(event) {
-    console.log("handleTaskDelete called", event);
     event.preventDefault();
     event.stopPropagation();
 
@@ -2188,22 +2193,18 @@ document.addEventListener("DOMContentLoaded", () => {
       taskId = event.target.parentElement.getAttribute("data-task-id");
     }
 
-    console.log("Task ID found:", taskId);
     taskId = parseInt(taskId);
     const task = tasks.find((t) => t.id === taskId);
-    console.log("Task found:", task);
 
     if (
       task &&
       confirm(`Are you sure you want to delete the task "${task.description}"?`)
     ) {
-      console.log("Deleting task:", task);
       const taskIndex = tasks.findIndex((t) => t.id === taskId);
       tasks.splice(taskIndex, 1);
 
       saveTasks()
         .then(() => {
-          console.log("Task deleted successfully");
           renderTasks();
         })
         .catch((err) => {
@@ -2301,10 +2302,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Event delegation for task list
   if (tasksList) {
     tasksList.addEventListener("click", (event) => {
-      console.log("Task list clicked", event.target);
       // Handle task checkbox toggle
       if (event.target.classList.contains("task-checkbox")) {
-        console.log("Checkbox clicked");
         handleTaskToggle(event);
       }
       // Handle task delete button
@@ -2312,7 +2311,6 @@ document.addEventListener("DOMContentLoaded", () => {
         event.target.classList.contains("task-delete-btn") ||
         event.target.closest(".task-delete-btn")
       ) {
-        console.log("Delete button clicked");
         const deleteBtn = event.target.classList.contains("task-delete-btn")
           ? event.target
           : event.target.closest(".task-delete-btn");
