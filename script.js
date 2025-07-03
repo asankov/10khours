@@ -1,10 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
   const goalHours = 10000;
   let entries = [];
+  let tasks = [];
   let chartInstance = null;
   let useTimeScale = true; // Default to time-based chart
   let darkMode = false; // Will be loaded from IndexedDB
   let dbReady = false; // Track if database is initialized
+  let activeTab = "entries"; // Track active tab
 
   const form = document.getElementById("add-entry-form");
   const addEntryContainer = document.getElementById("add-entry-form-container");
@@ -32,6 +34,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const chartTypeToggle = document.getElementById("chart-type-toggle");
   const themeToggle = document.getElementById("theme-toggle");
 
+  // Task-related elements
+  const entriesTab = document.getElementById("entries-tab");
+  const tasksTab = document.getElementById("tasks-tab");
+  const entriesContent = document.getElementById("entries-content");
+  const tasksContent = document.getElementById("tasks-content");
+  const showAddTaskBtn = document.getElementById("show-add-task-btn");
+  const addTaskContainer = document.getElementById("add-task-form-container");
+  const addTaskForm = document.getElementById("add-task-form");
+  const cancelAddTaskBtn = document.getElementById("cancel-add-task-btn");
+  const taskDescriptionInput = document.getElementById("task-description");
+  const taskDateInput = document.getElementById("task-date");
+  const tasksList = document.getElementById("tasks-list");
+
   // New elements for note editor
   const mainContentDiv = document.getElementById("main-content");
   const noteEditorSection = document.getElementById("note-editor-section");
@@ -50,16 +65,17 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log(
     "Checking marked library on initial script load:",
     typeof marked,
-    marked
+    marked,
   );
 
   // --- IndexedDB Management ---
   let db = null;
   const DB_NAME = "LearningTrackerDB";
-  const DB_VERSION = 2; // Increased version for project support
+  const DB_VERSION = 3; // Increased version for tasks support
   const STORE_NAME = "entries";
   const SETTINGS_STORE = "settings";
   const PROJECTS_STORE = "projects";
+  const TASKS_STORE = "tasks";
 
   // Initialize IndexedDB
   function initDB() {
@@ -78,11 +94,11 @@ document.addEventListener("DOMContentLoaded", () => {
         resolve(db);
       };
 
-      request.onupgradeneeded = event => {
+      request.onupgradeneeded = (event) => {
         db = event.target.result;
         const oldVersion = event.oldVersion;
         console.log(
-          `Upgrading IndexedDB schema from version ${oldVersion} to ${DB_VERSION}...`
+          `Upgrading IndexedDB schema from version ${oldVersion} to ${DB_VERSION}...`,
         );
 
         // Create entries store
@@ -122,7 +138,125 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
 
+        // Create tasks store
+        if (!db.objectStoreNames.contains(TASKS_STORE)) {
+          const tasksStore = db.createObjectStore(TASKS_STORE, {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          // Create indexes for better querying
+          tasksStore.createIndex("projectId", "projectId", { unique: false });
+          tasksStore.createIndex("completed", "completed", { unique: false });
+          tasksStore.createIndex("dateCreated", "dateCreated", {
+            unique: false,
+          });
+        } else if (oldVersion < 3) {
+          // Add indexes to existing tasks store if upgrading
+          const transaction = event.target.transaction;
+          const tasksStore = transaction.objectStore(TASKS_STORE);
+          if (!tasksStore.indexNames.contains("projectId")) {
+            tasksStore.createIndex("projectId", "projectId", { unique: false });
+          }
+          if (!tasksStore.indexNames.contains("completed")) {
+            tasksStore.createIndex("completed", "completed", { unique: false });
+          }
+          if (!tasksStore.indexNames.contains("dateCreated")) {
+            tasksStore.createIndex("dateCreated", "dateCreated", {
+              unique: false,
+            });
+          }
+        }
+
         console.log("IndexedDB schema created/updated");
+      };
+    });
+  }
+
+  // Load tasks from IndexedDB for current project
+  function loadTasks() {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready, waiting...");
+        resolve([]);
+        return;
+      }
+
+      const transaction = db.transaction([TASKS_STORE], "readonly");
+      const store = transaction.objectStore(TASKS_STORE);
+      const index = store.index("projectId");
+      const request = index.getAll(currentProjectId);
+
+      request.onsuccess = () => {
+        const loadedTasks = request.result || [];
+        tasks = loadedTasks.map((task) => ({
+          id: task.id,
+          description: task.description,
+          completed: task.completed,
+          dateCreated: task.dateCreated,
+          projectId: task.projectId,
+        }));
+        console.log(
+          `Loaded ${tasks.length} tasks for project ${currentProjectId}:`,
+          tasks,
+        );
+        resolve(tasks);
+      };
+
+      request.onerror = () => {
+        console.error("Failed to load tasks:", request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  // Save tasks to IndexedDB
+  function saveTasks() {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready, cannot save tasks");
+        resolve();
+        return;
+      }
+
+      const transaction = db.transaction([TASKS_STORE], "readwrite");
+      const store = transaction.objectStore(TASKS_STORE);
+
+      // First, clear existing tasks for this project
+      const index = store.index("projectId");
+      const deleteRequest = index.openCursor(currentProjectId);
+
+      deleteRequest.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          cursor.delete();
+          cursor.continue();
+        } else {
+          // Now add all current tasks
+          tasks.forEach((task) => {
+            const taskData = {
+              description: task.description,
+              completed: task.completed,
+              dateCreated: task.dateCreated,
+              projectId: currentProjectId,
+            };
+
+            if (task.id) {
+              taskData.id = task.id;
+            }
+
+            store.put(taskData);
+          });
+        }
+      };
+
+      transaction.oncomplete = () => {
+        console.log("Tasks saved successfully");
+        resolve();
+      };
+
+      transaction.onerror = () => {
+        console.error("Failed to save tasks:", transaction.error);
+        reject(transaction.error);
       };
     });
   }
@@ -146,7 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         request.onsuccess = () => {
           const loadedEntries = request.result || [];
-          entries = loadedEntries.map(entry => ({
+          entries = loadedEntries.map((entry) => ({
             date: entry.date,
             description: entry.description,
             hours: parseFloat(entry.hours),
@@ -155,7 +289,7 @@ document.addEventListener("DOMContentLoaded", () => {
           }));
           console.log(
             `Loaded ${entries.length} entries for project ${currentProjectId}:`,
-            entries
+            entries,
           );
           resolve(entries);
         };
@@ -172,9 +306,10 @@ document.addEventListener("DOMContentLoaded", () => {
           const loadedEntries = request.result || [];
           entries = loadedEntries
             .filter(
-              entry => !entry.projectId || entry.projectId === currentProjectId
+              (entry) =>
+                !entry.projectId || entry.projectId === currentProjectId,
             )
-            .map(entry => ({
+            .map((entry) => ({
               date: entry.date,
               description: entry.description,
               hours: parseFloat(entry.hours),
@@ -275,7 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const settings = request.result || [];
         const settingsMap = {};
 
-        settings.forEach(setting => {
+        settings.forEach((setting) => {
           settingsMap[setting.key] = setting.value;
         });
 
@@ -311,7 +446,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const settingsKeys = Object.keys(settings);
       let saveCount = 0;
 
-      settingsKeys.forEach(key => {
+      settingsKeys.forEach((key) => {
         const request = store.put({
           key: key,
           value: settings[key],
@@ -351,7 +486,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const projectsArray = request.result || [];
         const projectsMap = {};
 
-        projectsArray.forEach(project => {
+        projectsArray.forEach((project) => {
           projectsMap[project.id] = project;
         });
 
@@ -399,7 +534,7 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
-        projectIds.forEach(projectId => {
+        projectIds.forEach((projectId) => {
           const addRequest = store.add(projectsData[projectId]);
 
           addRequest.onsuccess = () => {
@@ -446,17 +581,21 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Save current project's entries
+    // Save current project's entries and tasks
     if (entries.length > 0) {
       await saveEntries();
+    }
+    if (tasks.length > 0) {
+      await saveTasks();
     }
 
     // Switch to new project
     currentProjectId = projectId;
     currentProjectName.textContent = projects[projectId].name;
 
-    // Load new project's entries
+    // Load new project's entries and tasks
     await loadEntries();
+    await loadTasks();
     renderAll();
 
     // Save current project setting
@@ -485,7 +624,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Save preference to IndexedDB
     darkMode = isDark;
-    saveSettings({ darkMode }).catch(err => {
+    saveSettings({ darkMode }).catch((err) => {
       console.error("Failed to save theme setting:", err);
     });
   }
@@ -526,11 +665,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const sortedEntries = [...entries].sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
+      (a, b) => new Date(b.date) - new Date(a.date),
     );
 
     sortedEntries.forEach((entry, index) => {
-      const originalIndex = entries.findIndex(e => e === entry);
+      const originalIndex = entries.findIndex((e) => e === entry);
       const row = document.createElement("tr");
 
       // Simplified notes preview (just first ~50 chars, plain text)
@@ -556,14 +695,14 @@ document.addEventListener("DOMContentLoaded", () => {
       // Make cells clickable by adding data attributes and editable class
       row.innerHTML = `
         <td class="editable-cell" data-field="date" data-index="${originalIndex}">${
-        entry.date
-      }</td>
+          entry.date
+        }</td>
         <td class="editable-cell" data-field="description" data-index="${originalIndex}">${
-        entry.description
-      }</td>
+          entry.description
+        }</td>
         <td class="editable-cell" data-field="hours" data-index="${originalIndex}">${entry.hours.toFixed(
-        1
-      )}</td>
+          1,
+        )}</td>
         <td class="editable-cell" data-field="notes" data-index="${originalIndex}">${notesPreviewHtml}</td>
         <td class="space-x-2">
           <button class="text-black-600 hover:text-gray-400 edit-btn" data-index="${originalIndex}"><i class="fas fa-edit"></i></button>
@@ -574,15 +713,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Add event listeners to buttons
-    document.querySelectorAll(".delete-btn").forEach(button => {
+    document.querySelectorAll(".delete-btn").forEach((button) => {
       button.addEventListener("click", handleDeleteEntry);
     });
-    document.querySelectorAll(".edit-btn").forEach(button => {
+    document.querySelectorAll(".edit-btn").forEach((button) => {
       button.addEventListener("click", handleEditNoteClick);
     });
 
     // Add event listeners to editable cells
-    document.querySelectorAll(".editable-cell").forEach(cell => {
+    document.querySelectorAll(".editable-cell").forEach((cell) => {
       cell.addEventListener("click", handleCellClick);
     });
   }
@@ -602,7 +741,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log(
       "Rendering chart with " +
         (useTimeScale ? "time-based" : "evenly-spaced") +
-        " scale..."
+        " scale...",
     );
 
     // Get theme colors
@@ -617,7 +756,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Sort entries by date ascending for the chart
     const sortedEntries = [...entries].sort(
-      (a, b) => new Date(a.date) - new Date(b.date)
+      (a, b) => new Date(a.date) - new Date(b.date),
     );
 
     const labels = [];
@@ -626,7 +765,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Aggregate hours per day for cleaner chart
     const dailyHours = {};
-    sortedEntries.forEach(entry => {
+    sortedEntries.forEach((entry) => {
       cumulativeHours += entry.hours;
       dailyHours[entry.date] = (dailyHours[entry.date] || 0) + entry.hours; // Sum hours for the same day
     });
@@ -634,13 +773,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // Create chart data points based on aggregated daily hours
     let runningTotal = 0;
     const sortedDates = Object.keys(dailyHours).sort(
-      (a, b) => new Date(a) - new Date(b)
+      (a, b) => new Date(a) - new Date(b),
     );
 
     // Format data for chart based on selected type
     const dataPoints = [];
 
-    sortedDates.forEach(date => {
+    sortedDates.forEach((date) => {
       runningTotal += dailyHours[date];
       labels.push(date);
       cumulativeHoursData.push(runningTotal);
@@ -755,7 +894,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log(
       "Chart rendered with " +
         (useTimeScale ? "time-based" : "evenly-spaced") +
-        " scale."
+        " scale.",
     );
   }
 
@@ -903,7 +1042,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update the entry's description if we're editing an entry
     if (currentlyEditingIndex !== null && entries[currentlyEditingIndex]) {
       entries[currentlyEditingIndex].description = newTitle;
-      saveEntries().catch(err => {
+      saveEntries().catch((err) => {
         console.error("Failed to save title change:", err);
       }); // Save to IndexedDB
     }
@@ -926,7 +1065,7 @@ document.addEventListener("DOMContentLoaded", () => {
       newDate
     ) {
       entries[currentlyEditingIndex].date = newDate;
-      saveEntries().catch(err => {
+      saveEntries().catch((err) => {
         console.error("Failed to save date change:", err);
       }); // Save to IndexedDB
     }
@@ -975,7 +1114,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       console.error(
         "Invalid index for editing notes:",
-        target.getAttribute("data-index")
+        target.getAttribute("data-index"),
       );
       return;
     }
@@ -1020,7 +1159,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       console.log(
         "EasyMDE instance created for entry notes:",
-        notesContent || "(empty)"
+        notesContent || "(empty)",
       );
 
       // Add custom paste handler for the smart-link feature
@@ -1048,7 +1187,7 @@ document.addEventListener("DOMContentLoaded", () => {
             cm.replaceSelection(`[${selectedText}](${pastedData})`);
 
             console.log(
-              `Transformed "${selectedText}" into a link with URL: ${pastedData}`
+              `Transformed "${selectedText}" into a link with URL: ${pastedData}`,
             );
           }
           // If not a URL, let the default paste behavior happen
@@ -1064,7 +1203,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function handleSaveNote() {
     if (currentlyEditingIndex === null || !easyMDEInstance) {
       console.error(
-        "Cannot save: No entry selected or editor not initialized."
+        "Cannot save: No entry selected or editor not initialized.",
       );
       return;
     }
@@ -1077,7 +1216,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log(
       "Saving notes for index:",
       currentlyEditingIndex,
-      entries[currentlyEditingIndex]
+      entries[currentlyEditingIndex],
     );
 
     saveEntries()
@@ -1085,7 +1224,7 @@ document.addEventListener("DOMContentLoaded", () => {
         showMainView(); // This will also destroy the EasyMDE instance
         renderAll();
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to save notes:", err);
         alert("Failed to save notes. Please try again.");
       });
@@ -1140,7 +1279,7 @@ document.addEventListener("DOMContentLoaded", () => {
         renderAll();
         hideAddEntryForm();
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to save new entry:", err);
         alert("Failed to save entry. Please try again.");
         // Remove the entry from local array if save failed
@@ -1159,7 +1298,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       console.error(
         "Invalid index for deletion:",
-        button.getAttribute("data-index")
+        button.getAttribute("data-index"),
       );
       return;
     }
@@ -1167,7 +1306,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const entryToDelete = entries[indexToDelete];
     if (
       confirm(
-        `Are you sure you want to delete the entry for "${entryToDelete.description}" on ${entryToDelete.date}?`
+        `Are you sure you want to delete the entry for "${entryToDelete.description}" on ${entryToDelete.date}?`,
       )
     ) {
       console.log("Deleting entry at index:", indexToDelete, entryToDelete);
@@ -1177,7 +1316,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(() => {
           renderAll();
         })
-        .catch(err => {
+        .catch((err) => {
           console.error("Failed to delete entry:", err);
           alert("Failed to delete entry. Please try again.");
           // Restore the entry if delete failed
@@ -1219,7 +1358,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const hasMultipleProjects = Object.keys(projects).length > 1;
 
-    Object.values(projects).forEach(project => {
+    Object.values(projects).forEach((project) => {
       const projectItem = document.createElement("button");
       projectItem.className = `project-item ${
         project.id === currentProjectId ? "active" : ""
@@ -1274,7 +1413,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const currentProject = projects[projectId];
     const newName = prompt(
       `Rename project "${currentProject.name}" to:`,
-      currentProject.name
+      currentProject.name,
     );
 
     if (!newName || !newName.trim()) {
@@ -1340,7 +1479,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (hasEntries) {
       if (
         !confirm(
-          `Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`
+          `Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`,
         )
       ) {
         return;
@@ -1354,7 +1493,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (wasCurrentProject) {
         // Find another project to switch to (prefer default, then any other)
         const availableProjects = Object.keys(projects).filter(
-          id => id !== projectId
+          (id) => id !== projectId,
         );
         let targetProjectId = "default";
 
@@ -1398,7 +1537,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           request.onsuccess = () => {
             const keys = request.result;
-            keys.forEach(key => {
+            keys.forEach((key) => {
               store.delete(key);
             });
           };
@@ -1530,7 +1669,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Validate import data structure
       if (!validateImportData(importData)) {
         throw new Error(
-          "Invalid file format. Please select a valid export file."
+          "Invalid file format. Please select a valid export file.",
         );
       }
 
@@ -1550,7 +1689,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       // Import entries
-      entries = importData.entries.map(entry => ({
+      entries = importData.entries.map((entry) => ({
         date: entry.date,
         description: entry.description,
         hours: parseFloat(entry.hours),
@@ -1635,42 +1774,81 @@ document.addEventListener("DOMContentLoaded", () => {
     return true;
   }
 
+  // --- Task Management Functions ---
+  // Render tasks list
+  function renderTasks() {
+    if (!tasksList) return;
+
+    tasksList.innerHTML = "";
+
+    if (tasks.length === 0) {
+      tasksList.innerHTML = `
+        <div class="p-4 text-center text-gray-500">
+          No tasks yet. Add your first task to get started!
+        </div>
+      `;
+      return;
+    }
+
+    // Sort tasks: incomplete first, then by date created
+    const sortedTasks = [...tasks].sort((a, b) => {
+      if (a.completed !== b.completed) {
+        return a.completed ? 1 : -1; // Incomplete tasks first
+      }
+      return new Date(b.dateCreated) - new Date(a.dateCreated); // Newest first
+    });
+
+    sortedTasks.forEach((task) => {
+      const taskElement = document.createElement("div");
+      taskElement.className = "task-item";
+
+      const dateCreated = new Date(task.dateCreated);
+      const formattedDate = dateCreated.toLocaleDateString();
+
+      taskElement.innerHTML = `
+        <div class="task-checkbox ${task.completed ? "completed" : ""}"
+             data-task-id="${task.id}"></div>
+        <div class="task-content">
+          <div class="task-description ${task.completed ? "completed" : ""}">${task.description}</div>
+          <div class="task-date">Created: ${formattedDate}</div>
+        </div>
+        <div class="task-actions">
+          <button class="task-delete-btn" data-task-id="${task.id}">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      `;
+
+      tasksList.appendChild(taskElement);
+    });
+
+    // Add event listeners to checkboxes
+    document.querySelectorAll(".task-checkbox").forEach((checkbox) => {
+      checkbox.addEventListener("click", handleTaskToggle);
+    });
+
+    // Add event listeners to delete buttons
+    document.querySelectorAll(".task-delete-btn").forEach((button) => {
+      button.addEventListener("click", handleTaskDelete);
+    });
+  }
+
   // --- Initialization ---
   function renderAll() {
     // Only render main view components if not editing
     if (currentlyEditingIndex === null) {
-      renderTable();
       renderProgress();
       renderChart();
+      if (activeTab === "entries") {
+        renderTable();
+      } else if (activeTab === "tasks") {
+        renderTasks();
+      }
     } else {
       // If somehow renderAll is called while editing, just ensure table is updated
       // This might happen if an error occurs during save/cancel
       renderTable();
     }
-  }
-
-  // --- Event Listeners ---
-  form.addEventListener("submit", handleAddEntry);
-  showAddFormBtn.addEventListener("click", showAddEntryForm);
-  cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
-  settingsBtn.addEventListener("click", toggleSettingsDropdown);
-  projectBtn.addEventListener("click", toggleProjectDropdown);
-  createProjectBtn.addEventListener("click", handleCreateProject);
-  importBtn.addEventListener("click", handleImport);
-  importFileInput.addEventListener("change", handleFileImport);
-  exportBtn.addEventListener("click", handleExport);
-  chartTypeToggle.addEventListener("change", handleChartTypeToggle);
-  saveNoteBtn.addEventListener("click", handleSaveNote);
-  cancelEditBtn.addEventListener("click", handleCancelEdit);
-
-  // Close dropdowns when clicking outside
-  document.addEventListener("click", handleDocumentClick);
-
-  // Theme toggle event listener
-  if (themeToggle) {
-    themeToggle.addEventListener("change", () => {
-      setTheme(themeToggle.checked);
-    });
   }
 
   // Initialize the application
@@ -1713,24 +1891,26 @@ document.addEventListener("DOMContentLoaded", () => {
       // Migrate legacy data to default project if needed
       await migrateLegacyData();
 
-      // Load entries for current project
+      // Load entries and tasks for current project
       await loadEntries();
+      await loadTasks();
 
       // Show main view and render
       showMainView();
       renderAll();
 
       console.log(
-        "10k Hours Tracker initialized successfully with multi-project support."
+        "10k Hours Tracker initialized successfully with multi-project support.",
       );
     } catch (error) {
       console.error("Failed to initialize app:", error);
       alert(
-        "Failed to initialize the application. Some features may not work properly."
+        "Failed to initialize the application. Some features may not work properly.",
       );
 
       // Fallback: continue with empty data
       entries = [];
+      tasks = [];
       showMainView();
       renderAll();
     }
@@ -1754,7 +1934,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const allEntries = request.result || [];
       let migrationNeeded = false;
 
-      allEntries.forEach(entry => {
+      allEntries.forEach((entry) => {
         if (!entry.projectId) {
           entry.projectId = "default";
           migrationNeeded = true;
@@ -1784,7 +1964,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isNaN(index) || index < 0 || index >= entries.length) {
       console.error(
         "Invalid index for cell editing:",
-        cell.getAttribute("data-index")
+        cell.getAttribute("data-index"),
       );
       return;
     }
@@ -1842,9 +2022,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle save on blur and enter key
     input.addEventListener("blur", () =>
-      saveInlineEdit(cell, input, index, field, originalContent)
+      saveInlineEdit(cell, input, index, field, originalContent),
     );
-    input.addEventListener("keydown", e => {
+    input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         saveInlineEdit(cell, input, index, field, originalContent);
       } else if (e.key === "Escape") {
@@ -1876,9 +2056,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle save on blur and enter key
     input.addEventListener("blur", () =>
-      saveInlineEdit(cell, input, index, "hours", originalContent)
+      saveInlineEdit(cell, input, index, "hours", originalContent),
     );
-    input.addEventListener("keydown", e => {
+    input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         saveInlineEdit(cell, input, index, "hours", originalContent);
       } else if (e.key === "Escape") {
@@ -1908,9 +2088,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle save on blur and enter key
     input.addEventListener("blur", () =>
-      saveInlineEdit(cell, input, index, "date", originalContent)
+      saveInlineEdit(cell, input, index, "date", originalContent),
     );
-    input.addEventListener("keydown", e => {
+    input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         saveInlineEdit(cell, input, index, "date", originalContent);
       } else if (e.key === "Escape") {
@@ -1945,7 +2125,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Refresh the table to show updated values
         renderAll();
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to save inline edit:", err);
         alert("Failed to save changes. Please try again.");
         // Refresh to restore original values
@@ -1957,4 +2137,219 @@ document.addEventListener("DOMContentLoaded", () => {
     // Restore original content
     cell.innerHTML = originalContent;
   }
+
+  // Tab switching functionality
+  function switchTab(tabName) {
+    activeTab = tabName;
+
+    // Update tab buttons
+    entriesTab.classList.remove("active");
+    tasksTab.classList.remove("active");
+
+    // Hide all tab contents
+    entriesContent.classList.add("hidden");
+    tasksContent.classList.add("hidden");
+
+    if (tabName === "entries") {
+      entriesTab.classList.add("active");
+      entriesContent.classList.remove("hidden");
+    } else if (tabName === "tasks") {
+      tasksTab.classList.add("active");
+      tasksContent.classList.remove("hidden");
+    }
+  }
+
+  // Handle task completion toggle
+  function handleTaskToggle(event) {
+    const taskId = parseInt(event.target.getAttribute("data-task-id"));
+    const task = tasks.find((t) => t.id === taskId);
+
+    if (task) {
+      task.completed = !task.completed;
+      console.log(
+        `Task ${taskId} toggled to ${task.completed ? "completed" : "incomplete"}`,
+      );
+
+      saveTasks()
+        .then(() => {
+          renderTasks();
+        })
+        .catch((err) => {
+          console.error("Failed to save task toggle:", err);
+          alert("Failed to update task. Please try again.");
+          // Revert the change
+          task.completed = !task.completed;
+          renderTasks();
+        });
+    }
+  }
+
+  // Handle task deletion
+  function handleTaskDelete(event) {
+    const taskId = parseInt(event.target.getAttribute("data-task-id"));
+    const task = tasks.find((t) => t.id === taskId);
+
+    if (
+      task &&
+      confirm(`Are you sure you want to delete the task "${task.description}"?`)
+    ) {
+      const taskIndex = tasks.findIndex((t) => t.id === taskId);
+      tasks.splice(taskIndex, 1);
+
+      saveTasks()
+        .then(() => {
+          renderTasks();
+        })
+        .catch((err) => {
+          console.error("Failed to delete task:", err);
+          alert("Failed to delete task. Please try again.");
+          // Restore the task
+          tasks.splice(taskIndex, 0, task);
+          renderTasks();
+        });
+    }
+  }
+
+  // Show add task form
+  function showAddTaskForm() {
+    addTaskContainer.classList.remove("hidden");
+    taskDescriptionInput.focus();
+
+    // Set default date to today
+    const today = new Date().toISOString().split("T")[0];
+    taskDateInput.value = today;
+  }
+
+  // Hide add task form
+  function hideAddTaskForm() {
+    addTaskContainer.classList.add("hidden");
+    resetTaskForm();
+  }
+
+  // Reset task form
+  function resetTaskForm() {
+    taskDescriptionInput.value = "";
+    taskDateInput.value = "";
+  }
+
+  // Handle add task form submission
+  function handleAddTask(event) {
+    event.preventDefault();
+
+    const description = taskDescriptionInput.value.trim();
+    const dateCreated =
+      taskDateInput.value || new Date().toISOString().split("T")[0];
+
+    if (!description) {
+      alert("Please enter a task description.");
+      taskDescriptionInput.focus();
+      return;
+    }
+
+    // Create new task
+    const newTask = {
+      id: Date.now(), // Simple ID generation
+      description: description,
+      completed: false,
+      dateCreated: dateCreated,
+      projectId: currentProjectId,
+    };
+
+    tasks.push(newTask);
+    console.log("Adding new task:", newTask);
+
+    saveTasks()
+      .then(() => {
+        renderTasks();
+        hideAddTaskForm();
+      })
+      .catch((err) => {
+        console.error("Failed to save new task:", err);
+        alert("Failed to save task. Please try again.");
+        // Remove the task from local array if save failed
+        tasks.pop();
+      });
+  }
+
+  // Event listeners
+  if (entriesTab) {
+    entriesTab.addEventListener("click", () => switchTab("entries"));
+  }
+
+  if (tasksTab) {
+    tasksTab.addEventListener("click", () => switchTab("tasks"));
+  }
+
+  if (showAddTaskBtn) {
+    showAddTaskBtn.addEventListener("click", showAddTaskForm);
+  }
+
+  if (cancelAddTaskBtn) {
+    cancelAddTaskBtn.addEventListener("click", hideAddTaskForm);
+  }
+
+  if (addTaskForm) {
+    addTaskForm.addEventListener("submit", handleAddTask);
+  }
+
+  // Event listeners for existing functionality
+  if (form) {
+    form.addEventListener("submit", handleAddEntry);
+  }
+
+  if (showAddFormBtn) {
+    showAddFormBtn.addEventListener("click", showAddEntryForm);
+  }
+
+  if (cancelAddFormBtn) {
+    cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
+  }
+
+  if (chartTypeToggle) {
+    chartTypeToggle.addEventListener("change", handleChartTypeToggle);
+  }
+
+  if (themeToggle) {
+    themeToggle.addEventListener("change", () => {
+      setTheme(themeToggle.checked);
+    });
+  }
+
+  if (settingsBtn) {
+    settingsBtn.addEventListener("click", toggleSettingsDropdown);
+  }
+
+  if (projectBtn) {
+    projectBtn.addEventListener("click", toggleProjectDropdown);
+  }
+
+  if (createProjectBtn) {
+    createProjectBtn.addEventListener("click", handleCreateProject);
+  }
+
+  if (exportBtn) {
+    exportBtn.addEventListener("click", handleExport);
+  }
+
+  if (importBtn) {
+    importBtn.addEventListener("click", handleImport);
+  }
+
+  if (importFileInput) {
+    importFileInput.addEventListener("change", handleFileImport);
+  }
+
+  if (saveNoteBtn) {
+    saveNoteBtn.addEventListener("click", handleSaveNote);
+  }
+
+  if (cancelEditBtn) {
+    cancelEditBtn.addEventListener("click", handleCancelEdit);
+  }
+
+  // Handle clicks outside dropdowns
+  document.addEventListener("click", handleDocumentClick);
+
+  // Initialize the application
+  initializeApp();
 });
