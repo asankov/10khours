@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let darkMode = false; // Will be loaded from IndexedDB
   let dbReady = false; // Track if database is initialized
   let activeTab = "entries"; // Track active tab
+  let autoCreateTasks = true; // Setting to control automatic task creation
 
   const form = document.getElementById("add-entry-form");
   const addEntryContainer = document.getElementById("add-entry-form-container");
@@ -22,6 +23,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const importBtn = document.getElementById("import-btn");
   const importFileInput = document.getElementById("import-file-input");
   const exportBtn = document.getElementById("export-btn");
+  const scanTasksBtn = document.getElementById("scan-tasks-btn");
+  const autoCreateTasksToggle = document.getElementById(
+    "auto-create-tasks-toggle",
+  );
   const descriptionInput = document.getElementById("description");
   const hoursInput = document.getElementById("hours");
   const dateInput = document.getElementById("date");
@@ -221,44 +226,237 @@ document.addEventListener("DOMContentLoaded", () => {
       const transaction = db.transaction([TASKS_STORE], "readwrite");
       const store = transaction.objectStore(TASKS_STORE);
 
-      // First, clear existing tasks for this project
-      const index = store.index("projectId");
-      const deleteRequest = index.openCursor(currentProjectId);
+      // Process each task individually to preserve IDs
+      let processedCount = 0;
 
-      deleteRequest.onsuccess = (event) => {
-        const cursor = event.target.result;
-        if (cursor) {
-          cursor.delete();
-          cursor.continue();
-        } else {
-          // Now add all current tasks
-          tasks.forEach((task) => {
-            const taskData = {
-              description: task.description,
-              completed: task.completed,
-              dateCreated: task.dateCreated,
-              projectId: currentProjectId,
-            };
+      if (tasks.length === 0) {
+        // If no tasks, clear existing tasks for this project
+        const index = store.index("projectId");
+        const deleteRequest = index.openCursor(currentProjectId);
 
-            if (task.id) {
-              taskData.id = task.id;
-            }
+        deleteRequest.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            cursor.delete();
+            cursor.continue();
+          } else {
+            console.log("All tasks cleared for project");
+            resolve();
+          }
+        };
 
-            store.put(taskData);
-          });
+        deleteRequest.onerror = () => {
+          reject(deleteRequest.error);
+        };
+
+        return;
+      }
+
+      tasks.forEach((task) => {
+        const taskData = {
+          description: task.description,
+          completed: task.completed,
+          dateCreated: task.dateCreated,
+          projectId: currentProjectId,
+        };
+
+        // For existing tasks, preserve the ID
+        if (task.id) {
+          taskData.id = task.id;
         }
-      };
 
-      transaction.oncomplete = () => {
-        console.log("Tasks saved successfully");
-        resolve();
-      };
+        const request = store.put(taskData);
 
-      transaction.onerror = () => {
-        console.error("Failed to save tasks:", transaction.error);
-        reject(transaction.error);
-      };
+        request.onsuccess = () => {
+          // Update the task with the actual ID from the database
+          if (!task.id) {
+            task.id = request.result;
+          }
+          processedCount++;
+
+          if (processedCount === tasks.length) {
+            console.log("Tasks saved successfully");
+            resolve();
+          }
+        };
+
+        request.onerror = () => {
+          console.error("Failed to save task:", request.error);
+          reject(request.error);
+        };
+      });
     });
+  }
+
+  // Extract markdown tasks from note content
+  function extractMarkdownTasks(noteContent) {
+    if (!noteContent || typeof noteContent !== "string") {
+      return [];
+    }
+
+    // Enhanced regex to handle various markdown task formats:
+    // - [ ] task
+    // * [ ] task
+    // + [ ] task
+    // - [ ] task with extra spaces
+    // Only extract unchecked tasks (not completed ones marked with x)
+    const taskRegex = /^\s*[-*+]\s+\[\s*\]\s+(.+)$/gim;
+    const tasks = [];
+    let match;
+
+    while ((match = taskRegex.exec(noteContent)) !== null) {
+      const taskDescription = match[1].trim();
+      if (taskDescription) {
+        tasks.push(taskDescription);
+      }
+    }
+
+    return tasks;
+  }
+
+  // Create tasks from markdown task list
+  function createTasksFromMarkdown(noteContent, entryDate) {
+    if (!autoCreateTasks) {
+      return;
+    }
+
+    const markdownTasks = extractMarkdownTasks(noteContent);
+
+    if (markdownTasks.length === 0) {
+      return;
+    }
+
+    console.log(`Found ${markdownTasks.length} markdown tasks in note`);
+
+    // Filter out tasks that already exist
+    const newTasks = markdownTasks.filter((taskDescription) => {
+      return !tasks.find(
+        (task) =>
+          task.description.toLowerCase() === taskDescription.toLowerCase(),
+      );
+    });
+
+    if (newTasks.length === 0) {
+      console.log("All found tasks already exist, skipping creation");
+      return;
+    }
+
+    // Show preview of tasks that will be created
+    const taskPreview = newTasks.join("\n• ");
+    const confirmed = confirm(
+      `Found ${newTasks.length} new task(s) in your note:\n\n• ${taskPreview}\n\nWould you like to create these tasks?`,
+    );
+
+    if (!confirmed) {
+      console.log("User declined to create tasks from markdown");
+      return;
+    }
+
+    newTasks.forEach((taskDescription, index) => {
+      const newTask = {
+        id: Date.now() + index, // Simple integer ID
+        description: taskDescription,
+        completed: false,
+        dateCreated: entryDate || new Date().toISOString().split("T")[0],
+        projectId: currentProjectId,
+      };
+
+      tasks.push(newTask);
+      console.log("Created task from markdown:", taskDescription);
+    });
+
+    // Save tasks to IndexedDB
+    saveTasks()
+      .then(() => {
+        console.log("Markdown tasks saved successfully");
+        // If we're on the tasks tab, refresh the view
+        if (activeTab === "tasks") {
+          renderTasks();
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to save markdown tasks:", err);
+      });
+  }
+
+  // Scan all existing entries for markdown tasks and create them
+  function scanAllEntriesForTasks() {
+    const potentialNewTasks = [];
+
+    entries.forEach((entry) => {
+      if (entry.notes) {
+        const markdownTasks = extractMarkdownTasks(entry.notes);
+
+        markdownTasks.forEach((taskDescription) => {
+          // Check if task already exists to avoid duplicates
+          const existingTask = tasks.find(
+            (task) =>
+              task.description.toLowerCase() === taskDescription.toLowerCase(),
+          );
+
+          if (!existingTask) {
+            potentialNewTasks.push({
+              description: taskDescription,
+              dateCreated: entry.date,
+            });
+          }
+        });
+      }
+    });
+
+    if (potentialNewTasks.length === 0) {
+      alert("No new tasks found in your existing notes.");
+      return;
+    }
+
+    // Show preview of all tasks that will be created
+    const taskPreview = potentialNewTasks
+      .map((task) => `• ${task.description}`)
+      .join("\n");
+    const confirmed = confirm(
+      `Found ${potentialNewTasks.length} new task(s) in your existing notes:\n\n${taskPreview}\n\nWould you like to create these tasks?`,
+    );
+
+    if (!confirmed) {
+      console.log("User declined to create tasks from scan");
+      return;
+    }
+
+    // Create the tasks
+    potentialNewTasks.forEach((potentialTask, index) => {
+      const newTask = {
+        id: Date.now() + index, // Simple integer ID
+        description: potentialTask.description,
+        completed: false,
+        dateCreated: potentialTask.dateCreated,
+        projectId: currentProjectId,
+      };
+
+      tasks.push(newTask);
+    });
+
+    console.log(
+      `Created ${potentialNewTasks.length} tasks from existing entries`,
+    );
+
+    // Save tasks to IndexedDB
+    saveTasks()
+      .then(() => {
+        console.log("Scanned tasks saved successfully");
+        // If we're on the tasks tab, refresh the view
+        if (activeTab === "tasks") {
+          renderTasks();
+        }
+
+        // Show a notification to the user
+        alert(
+          `Successfully created ${potentialNewTasks.length} tasks from your existing notes!`,
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to save scanned tasks:", err);
+        alert("Failed to save tasks. Please try again.");
+      });
   }
 
   // Load entries from IndexedDB for current project
@@ -601,6 +799,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Save current project setting
     await saveSettings({
       darkMode: darkMode,
+      autoCreateTasks: autoCreateTasks,
       currentProject: currentProjectId,
     });
 
@@ -624,8 +823,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Save preference to IndexedDB
     darkMode = isDark;
-    saveSettings({ darkMode }).catch((err) => {
+    saveSettings({
+      darkMode: darkMode,
+      autoCreateTasks: autoCreateTasks,
+      currentProject: currentProjectId,
+    }).catch((err) => {
       console.error("Failed to save theme setting:", err);
+    });
+  }
+
+  // Toggle auto-create tasks setting
+  function toggleAutoCreateTasks(enabled) {
+    autoCreateTasks = enabled;
+    if (autoCreateTasksToggle) {
+      autoCreateTasksToggle.checked = enabled;
+    }
+
+    // Save preference to IndexedDB
+    saveSettings({
+      darkMode: darkMode,
+      autoCreateTasks: autoCreateTasks,
+      currentProject: currentProjectId,
+    }).catch((err) => {
+      console.error("Failed to save auto-create tasks setting:", err);
     });
   }
 
@@ -1208,16 +1428,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const newNotes = easyMDEInstance.value(); // Get content from EasyMDE
-    entries[currentlyEditingIndex].notes = newNotes.trim()
-      ? newNotes.trim()
-      : undefined;
+    const noteContent = easyMDEInstance.value();
+    entries[currentlyEditingIndex].notes = noteContent;
 
     console.log(
       "Saving notes for index:",
       currentlyEditingIndex,
       entries[currentlyEditingIndex],
     );
+
+    // Extract and create tasks from markdown task lists
+    const entryDate = entries[currentlyEditingIndex].date;
+    createTasksFromMarkdown(noteContent, entryDate);
 
     saveEntries()
       .then(() => {
@@ -1866,9 +2088,10 @@ document.addEventListener("DOMContentLoaded", () => {
         await saveProjects(projects);
       }
 
-      // Load settings and apply theme
+      // Save settings and apply theme
       const settings = await loadSettings();
       darkMode = settings.darkMode;
+      autoCreateTasks = settings.autoCreateTasks !== false; // Default to true
       currentProjectId = settings.currentProject || "default";
 
       // Ensure current project exists
@@ -1876,6 +2099,7 @@ document.addEventListener("DOMContentLoaded", () => {
         currentProjectId = "default";
         await saveSettings({
           darkMode: darkMode,
+          autoCreateTasks: autoCreateTasks,
           currentProject: currentProjectId,
         });
       }
@@ -1883,6 +2107,11 @@ document.addEventListener("DOMContentLoaded", () => {
       // Update UI
       currentProjectName.textContent = projects[currentProjectId].name;
       setTheme(darkMode);
+
+      // Set auto-create tasks toggle
+      if (autoCreateTasksToggle) {
+        autoCreateTasksToggle.checked = autoCreateTasks;
+      }
 
       // Migrate legacy data to default project if needed
       await migrateLegacyData();
@@ -2255,7 +2484,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Create new task
     const newTask = {
-      id: Date.now(), // Simple ID generation
+      id: Date.now(), // Simple integer ID
       description: description,
       completed: false,
       dateCreated: dateCreated,
@@ -2349,6 +2578,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  if (autoCreateTasksToggle) {
+    autoCreateTasksToggle.addEventListener("change", () => {
+      toggleAutoCreateTasks(autoCreateTasksToggle.checked);
+    });
+  }
+
   if (settingsBtn) {
     settingsBtn.addEventListener("click", toggleSettingsDropdown);
   }
@@ -2371,6 +2606,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (importFileInput) {
     importFileInput.addEventListener("change", handleFileImport);
+  }
+
+  if (scanTasksBtn) {
+    scanTasksBtn.addEventListener("click", () => {
+      hideSettingsDropdown();
+      scanAllEntriesForTasks();
+    });
   }
 
   if (saveNoteBtn) {
