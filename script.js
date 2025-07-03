@@ -1814,7 +1814,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
         <div class="task-actions">
           <button class="task-delete-btn" data-task-id="${task.id}">
-            <i class="fas fa-trash"></i>
+            🗑️
           </button>
         </div>
       `;
@@ -1822,15 +1822,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tasksList.appendChild(taskElement);
     });
 
-    // Add event listeners to checkboxes
-    document.querySelectorAll(".task-checkbox").forEach((checkbox) => {
-      checkbox.addEventListener("click", handleTaskToggle);
-    });
-
-    // Add event listeners to delete buttons
-    document.querySelectorAll(".task-delete-btn").forEach((button) => {
-      button.addEventListener("click", handleTaskDelete);
-    });
+    // Event listeners are now handled by event delegation on the tasksList container
   }
 
   // --- Initialization ---
@@ -2186,18 +2178,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle task deletion
   function handleTaskDelete(event) {
-    const taskId = parseInt(event.target.getAttribute("data-task-id"));
+    console.log("handleTaskDelete called", event);
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Get the task ID from the button or its parent
+    let taskId = event.target.getAttribute("data-task-id");
+    if (!taskId && event.target.parentElement) {
+      taskId = event.target.parentElement.getAttribute("data-task-id");
+    }
+
+    console.log("Task ID found:", taskId);
+    taskId = parseInt(taskId);
     const task = tasks.find((t) => t.id === taskId);
+    console.log("Task found:", task);
 
     if (
       task &&
       confirm(`Are you sure you want to delete the task "${task.description}"?`)
     ) {
+      console.log("Deleting task:", task);
       const taskIndex = tasks.findIndex((t) => t.id === taskId);
       tasks.splice(taskIndex, 1);
 
       saveTasks()
         .then(() => {
+          console.log("Task deleted successfully");
           renderTasks();
         })
         .catch((err) => {
@@ -2290,6 +2296,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (addTaskForm) {
     addTaskForm.addEventListener("submit", handleAddTask);
+  }
+
+  // Event delegation for task list
+  if (tasksList) {
+    tasksList.addEventListener("click", (event) => {
+      console.log("Task list clicked", event.target);
+      // Handle task checkbox toggle
+      if (event.target.classList.contains("task-checkbox")) {
+        console.log("Checkbox clicked");
+        handleTaskToggle(event);
+      }
+      // Handle task delete button
+      else if (
+        event.target.classList.contains("task-delete-btn") ||
+        event.target.closest(".task-delete-btn")
+      ) {
+        console.log("Delete button clicked");
+        const deleteBtn = event.target.classList.contains("task-delete-btn")
+          ? event.target
+          : event.target.closest(".task-delete-btn");
+
+        // Create a new event with the correct target
+        const newEvent = new Event("click", {
+          bubbles: true,
+          cancelable: true,
+        });
+        Object.defineProperty(newEvent, "target", { value: deleteBtn });
+        handleTaskDelete(newEvent);
+      }
+    });
   }
 
   // Event listeners for existing functionality
