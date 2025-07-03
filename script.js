@@ -1310,12 +1310,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function deleteProject(projectId) {
     const project = projects[projectId];
-    if (
-      !confirm(
-        `Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`
-      )
-    ) {
-      return;
+
+    // Check if project has any entries
+    let hasEntries = false;
+    if (dbReady && db) {
+      try {
+        const transaction = db.transaction([STORE_NAME], "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+
+        if (store.indexNames.contains("projectId")) {
+          const index = store.index("projectId");
+          const countRequest = index.count(projectId);
+
+          await new Promise((resolve, reject) => {
+            countRequest.onsuccess = () => {
+              hasEntries = countRequest.result > 0;
+              resolve();
+            };
+            countRequest.onerror = () => reject(countRequest.error);
+          });
+        }
+      } catch (error) {
+        console.error("Error checking project entries:", error);
+        hasEntries = true; // Default to showing confirmation on error
+      }
+    }
+
+    // Only show confirmation if project has entries
+    if (hasEntries) {
+      if (
+        !confirm(
+          `Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`
+        )
+      ) {
+        return;
+      }
     }
 
     try {
