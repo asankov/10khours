@@ -199,6 +199,8 @@ document.addEventListener("DOMContentLoaded", () => {
           completed: task.completed,
           dateCreated: task.dateCreated,
           projectId: task.projectId,
+          originNoteId: task.originNoteId,
+          originNoteName: task.originNoteName,
         }));
         console.log(
           `Loaded ${tasks.length} tasks for project ${currentProjectId}:`,
@@ -258,6 +260,8 @@ document.addEventListener("DOMContentLoaded", () => {
           completed: task.completed,
           dateCreated: task.dateCreated,
           projectId: currentProjectId,
+          originNoteId: task.originNoteId,
+          originNoteName: task.originNoteName,
         };
 
         // For existing tasks, preserve the ID
@@ -399,6 +403,8 @@ document.addEventListener("DOMContentLoaded", () => {
             potentialNewTasks.push({
               description: taskDescription,
               dateCreated: entry.date,
+              originNoteId: entry._id,
+              originNoteName: entry.description,
             });
           }
         });
@@ -1459,7 +1465,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Form Handling ---
   function showAddEntryForm() {
+    console.log("showAddEntryForm called!"); // Add this line for debugging
     addEntryContainer.classList.remove("hidden");
+    addEntryContainer.style.display = "block"; // Ensure it's displayed
     descriptionInput.focus();
     showAddFormBtn.classList.add("hidden");
   }
@@ -2554,6 +2562,19 @@ document.addEventListener("DOMContentLoaded", () => {
     addTaskForm.addEventListener("submit", handleAddTask);
   }
 
+  // Add event listeners for the Add Entry form buttons
+  if (form) {
+    form.addEventListener("submit", handleAddEntry);
+  }
+
+  if (showAddFormBtn) {
+    showAddFormBtn.addEventListener("click", showAddEntryForm);
+  }
+
+  if (cancelAddFormBtn) {
+    cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
+  }
+
   if (chartTypeToggle) {
     chartTypeToggle.addEventListener("change", handleChartTypeToggle);
   }
@@ -2629,7 +2650,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       const button = target.closest(".task-delete-btn");
       const taskId = parseInt(button.getAttribute("data-task-id"), 10);
-      handleTaskDelete(taskId);
+      handleDeleteTask(taskId);
     }
   });
 
