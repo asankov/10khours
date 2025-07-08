@@ -437,6 +437,8 @@ document.addEventListener("DOMContentLoaded", () => {
         completed: false,
         dateCreated: potentialTask.dateCreated,
         projectId: currentProjectId,
+        originNoteId: potentialTask.originNoteId,
+        originNoteName: potentialTask.originNoteName,
       };
 
       tasks.push(newTask);
