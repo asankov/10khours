@@ -315,7 +315,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Create tasks from markdown task list
-  function createTasksFromMarkdown(noteContent, entryDate) {
+  function createTasksFromMarkdown(noteContent, originEntry) {
     if (!autoCreateTasks) {
       return;
     }
@@ -356,8 +356,10 @@ document.addEventListener("DOMContentLoaded", () => {
         id: Date.now() + index, // Simple integer ID
         description: taskDescription,
         completed: false,
-        dateCreated: entryDate || new Date().toISOString().split("T")[0],
+        dateCreated: originEntry.date || new Date().toISOString().split("T")[0],
         projectId: currentProjectId,
+        originNoteId: originEntry._id, // Save the ID of the note
+        originNoteName: originEntry.description, // Save the description for display
       };
 
       tasks.push(newTask);
@@ -1436,8 +1438,8 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     // Extract and create tasks from markdown task lists
-    const entryDate = entries[currentlyEditingIndex].date;
-    createTasksFromMarkdown(noteContent, entryDate);
+    // Pass the entire entry object so we can get its ID and description
+    createTasksFromMarkdown(noteContent, entries[currentlyEditingIndex]);
 
     saveEntries()
       .then(() => {
@@ -2055,6 +2057,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const dateCreated = new Date(task.dateCreated);
       const formattedDate = dateCreated.toLocaleDateString();
 
+      let originNoteHtml = "";
+      if (task.originNoteName) {
+        originNoteHtml = `<span class="text-gray-500 text-sm ml-2">(From ${task.originNoteName})</span>`;
+      }
+
       taskElement.innerHTML = `
         <div class="task-checkbox ${task.completed ? "completed" : ""}"
              data-task-id="${task.id}"></div>
@@ -2062,7 +2069,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="task-description ${task.completed ? "completed" : ""}">${
         task.description
       }</div>
-          <div class="task-date">Created: ${formattedDate}</div>
+          <div class="task-date">Created: ${formattedDate}${originNoteHtml}</div>
         </div>
         <div class="task-actions">
           <button class="task-delete-btn" data-task-id="${task.id}">
