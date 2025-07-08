@@ -1,10 +1,13 @@
 document.addEventListener("DOMContentLoaded", () => {
   const goalHours = 10000;
   let entries = [];
+  let tasks = [];
   let chartInstance = null;
   let useTimeScale = true; // Default to time-based chart
   let darkMode = false; // Will be loaded from IndexedDB
   let dbReady = false; // Track if database is initialized
+  let activeTab = "entries"; // Track active tab
+  let autoCreateTasks = true; // Setting to control automatic task creation
 
   const form = document.getElementById("add-entry-form");
   const addEntryContainer = document.getElementById("add-entry-form-container");
@@ -20,6 +23,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const importBtn = document.getElementById("import-btn");
   const importFileInput = document.getElementById("import-file-input");
   const exportBtn = document.getElementById("export-btn");
+  const scanTasksBtn = document.getElementById("scan-tasks-btn");
+  const autoCreateTasksToggle = document.getElementById(
+    "auto-create-tasks-toggle"
+  );
   const descriptionInput = document.getElementById("description");
   const hoursInput = document.getElementById("hours");
   const dateInput = document.getElementById("date");
@@ -31,6 +38,19 @@ document.addEventListener("DOMContentLoaded", () => {
     .getContext("2d");
   const chartTypeToggle = document.getElementById("chart-type-toggle");
   const themeToggle = document.getElementById("theme-toggle");
+
+  // Task-related elements
+  const entriesTab = document.getElementById("entries-tab");
+  const tasksTab = document.getElementById("tasks-tab");
+  const entriesContent = document.getElementById("entries-content");
+  const tasksContent = document.getElementById("tasks-content");
+  const showAddTaskBtn = document.getElementById("show-add-task-btn");
+  const addTaskContainer = document.getElementById("add-task-form-container");
+  const addTaskForm = document.getElementById("add-task-form");
+  const cancelAddTaskBtn = document.getElementById("cancel-add-task-btn");
+  const taskDescriptionInput = document.getElementById("task-description");
+  const taskDateInput = document.getElementById("task-date");
+  const tasksList = document.getElementById("tasks-list");
 
   // New elements for note editor
   const mainContentDiv = document.getElementById("main-content");
@@ -56,10 +76,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- IndexedDB Management ---
   let db = null;
   const DB_NAME = "LearningTrackerDB";
-  const DB_VERSION = 2; // Increased version for project support
+  const DB_VERSION = 3; // Increased version for tasks support
   const STORE_NAME = "entries";
   const SETTINGS_STORE = "settings";
   const PROJECTS_STORE = "projects";
+  const TASKS_STORE = "tasks";
 
   // Initialize IndexedDB
   function initDB() {
@@ -122,9 +143,329 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
 
+        // Create tasks store
+        if (!db.objectStoreNames.contains(TASKS_STORE)) {
+          const tasksStore = db.createObjectStore(TASKS_STORE, {
+            keyPath: "id",
+            autoIncrement: true,
+          });
+          // Create indexes for better querying
+          tasksStore.createIndex("projectId", "projectId", { unique: false });
+          tasksStore.createIndex("completed", "completed", { unique: false });
+          tasksStore.createIndex("dateCreated", "dateCreated", {
+            unique: false,
+          });
+        } else if (oldVersion < 3) {
+          // Add indexes to existing tasks store if upgrading
+          const transaction = event.target.transaction;
+          const tasksStore = transaction.objectStore(TASKS_STORE);
+          if (!tasksStore.indexNames.contains("projectId")) {
+            tasksStore.createIndex("projectId", "projectId", { unique: false });
+          }
+          if (!tasksStore.indexNames.contains("completed")) {
+            tasksStore.createIndex("completed", "completed", { unique: false });
+          }
+          if (!tasksStore.indexNames.contains("dateCreated")) {
+            tasksStore.createIndex("dateCreated", "dateCreated", {
+              unique: false,
+            });
+          }
+        }
+
         console.log("IndexedDB schema created/updated");
       };
     });
+  }
+
+  // Load tasks from IndexedDB for current project
+  function loadTasks() {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready, waiting...");
+        resolve([]);
+        return;
+      }
+
+      const transaction = db.transaction([TASKS_STORE], "readonly");
+      const store = transaction.objectStore(TASKS_STORE);
+      const index = store.index("projectId");
+      const request = index.getAll(currentProjectId);
+
+      request.onsuccess = () => {
+        const loadedTasks = request.result || [];
+        tasks = loadedTasks.map(task => ({
+          id: task.id,
+          description: task.description,
+          completed: task.completed,
+          dateCreated: task.dateCreated,
+          projectId: task.projectId,
+          originNoteId: task.originNoteId,
+          originNoteName: task.originNoteName,
+        }));
+        console.log(
+          `Loaded ${tasks.length} tasks for project ${currentProjectId}:`,
+          tasks
+        );
+        resolve(tasks);
+      };
+
+      request.onerror = () => {
+        console.error("Failed to load tasks:", request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  // Save tasks to IndexedDB
+  function saveTasks() {
+    return new Promise((resolve, reject) => {
+      if (!dbReady || !db) {
+        console.warn("Database not ready, cannot save tasks");
+        resolve();
+        return;
+      }
+
+      const transaction = db.transaction([TASKS_STORE], "readwrite");
+      const store = transaction.objectStore(TASKS_STORE);
+
+      // Process each task individually to preserve IDs
+      let processedCount = 0;
+
+      if (tasks.length === 0) {
+        // If no tasks, clear existing tasks for this project
+        const index = store.index("projectId");
+        const deleteRequest = index.openCursor(currentProjectId);
+
+        deleteRequest.onsuccess = event => {
+          const cursor = event.target.result;
+          if (cursor) {
+            cursor.delete();
+            cursor.continue();
+          } else {
+            console.log("All tasks cleared for project");
+            resolve();
+          }
+        };
+
+        deleteRequest.onerror = () => {
+          reject(deleteRequest.error);
+        };
+
+        return;
+      }
+
+      tasks.forEach(task => {
+        const taskData = {
+          description: task.description,
+          completed: task.completed,
+          dateCreated: task.dateCreated,
+          projectId: currentProjectId,
+          originNoteId: task.originNoteId,
+          originNoteName: task.originNoteName,
+        };
+
+        // For existing tasks, preserve the ID
+        if (task.id) {
+          taskData.id = task.id;
+        }
+
+        const request = store.put(taskData);
+
+        request.onsuccess = () => {
+          // Update the task with the actual ID from the database
+          if (!task.id) {
+            task.id = request.result;
+          }
+          processedCount++;
+
+          if (processedCount === tasks.length) {
+            console.log("Tasks saved successfully");
+            resolve();
+          }
+        };
+
+        request.onerror = () => {
+          console.error("Failed to save task:", request.error);
+          reject(request.error);
+        };
+      });
+    });
+  }
+
+  // Extract markdown tasks from note content
+  function extractMarkdownTasks(noteContent) {
+    if (!noteContent || typeof noteContent !== "string") {
+      return [];
+    }
+
+    // Enhanced regex to handle various markdown task formats:
+    // - [ ] task
+    // * [ ] task
+    // + [ ] task
+    // - [ ] task with extra spaces
+    // Only extract unchecked tasks (not completed ones marked with x)
+    const taskRegex = /^\s*[-*+]\s+\[\s*\]\s+(.+)$/gim;
+    const tasks = [];
+    let match;
+
+    while ((match = taskRegex.exec(noteContent)) !== null) {
+      const taskDescription = match[1].trim();
+      if (taskDescription) {
+        tasks.push(taskDescription);
+      }
+    }
+
+    return tasks;
+  }
+
+  // Create tasks from markdown task list
+  function createTasksFromMarkdown(noteContent, originEntry) {
+    if (!autoCreateTasks) {
+      return;
+    }
+
+    const markdownTasks = extractMarkdownTasks(noteContent);
+
+    if (markdownTasks.length === 0) {
+      return;
+    }
+
+    console.log(`Found ${markdownTasks.length} markdown tasks in note`);
+
+    // Filter out tasks that already exist
+    const newTasks = markdownTasks.filter(taskDescription => {
+      return !tasks.find(
+        task => task.description.toLowerCase() === taskDescription.toLowerCase()
+      );
+    });
+
+    if (newTasks.length === 0) {
+      console.log("All found tasks already exist, skipping creation");
+      return;
+    }
+
+    // Show preview of tasks that will be created
+    const taskPreview = newTasks.join("\n• ");
+    const confirmed = confirm(
+      `Found ${newTasks.length} new task(s) in your note:\n\n• ${taskPreview}\n\nWould you like to create these tasks?`
+    );
+
+    if (!confirmed) {
+      console.log("User declined to create tasks from markdown");
+      return;
+    }
+
+    newTasks.forEach((taskDescription, index) => {
+      const newTask = {
+        id: Date.now() + index, // Simple integer ID
+        description: taskDescription,
+        completed: false,
+        dateCreated: originEntry.date || new Date().toISOString().split("T")[0],
+        projectId: currentProjectId,
+        originNoteId: originEntry._id, // Save the ID of the note
+        originNoteName: originEntry.description, // Save the description for display
+      };
+
+      tasks.push(newTask);
+      console.log("Created task from markdown:", taskDescription);
+    });
+
+    // Save tasks to IndexedDB
+    saveTasks()
+      .then(() => {
+        console.log("Markdown tasks saved successfully");
+        // If we're on the tasks tab, refresh the view
+        if (activeTab === "tasks") {
+          renderTasks();
+        }
+      })
+      .catch(err => {
+        console.error("Failed to save markdown tasks:", err);
+      });
+  }
+
+  // Scan all existing entries for markdown tasks and create them
+  function scanAllEntriesForTasks() {
+    const potentialNewTasks = [];
+
+    entries.forEach(entry => {
+      if (entry.notes) {
+        const markdownTasks = extractMarkdownTasks(entry.notes);
+
+        markdownTasks.forEach(taskDescription => {
+          // Check if task already exists to avoid duplicates
+          const existingTask = tasks.find(
+            task =>
+              task.description.toLowerCase() === taskDescription.toLowerCase()
+          );
+
+          if (!existingTask) {
+            potentialNewTasks.push({
+              description: taskDescription,
+              dateCreated: entry.date,
+              originNoteId: entry._id,
+              originNoteName: entry.description,
+            });
+          }
+        });
+      }
+    });
+
+    if (potentialNewTasks.length === 0) {
+      alert("No new tasks found in your existing notes.");
+      return;
+    }
+
+    // Show preview of all tasks that will be created
+    const taskPreview = potentialNewTasks
+      .map(task => `• ${task.description}`)
+      .join("\n");
+    const confirmed = confirm(
+      `Found ${potentialNewTasks.length} new task(s) in your existing notes:\n\n${taskPreview}\n\nWould you like to create these tasks?`
+    );
+
+    if (!confirmed) {
+      console.log("User declined to create tasks from scan");
+      return;
+    }
+
+    // Create the tasks
+    potentialNewTasks.forEach((potentialTask, index) => {
+      const newTask = {
+        id: Date.now() + index, // Simple integer ID
+        description: potentialTask.description,
+        completed: false,
+        dateCreated: potentialTask.dateCreated,
+        projectId: currentProjectId,
+        originNoteId: potentialTask.originNoteId,
+        originNoteName: potentialTask.originNoteName,
+      };
+
+      tasks.push(newTask);
+    });
+
+    console.log(
+      `Created ${potentialNewTasks.length} tasks from existing entries`
+    );
+
+    // Save tasks to IndexedDB
+    saveTasks()
+      .then(() => {
+        console.log("Scanned tasks saved successfully");
+        // If we're on the tasks tab, refresh the view
+        if (activeTab === "tasks") {
+          renderTasks();
+        }
+
+        // Show a notification to the user
+        alert(
+          `Successfully created ${potentialNewTasks.length} tasks from your existing notes!`
+        );
+      })
+      .catch(err => {
+        console.error("Failed to save scanned tasks:", err);
+        alert("Failed to save tasks. Please try again.");
+      });
   }
 
   // Load entries from IndexedDB for current project
@@ -446,22 +787,27 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Save current project's entries
+    // Save current project's entries and tasks
     if (entries.length > 0) {
       await saveEntries();
+    }
+    if (tasks.length > 0) {
+      await saveTasks();
     }
 
     // Switch to new project
     currentProjectId = projectId;
     currentProjectName.textContent = projects[projectId].name;
 
-    // Load new project's entries
+    // Load new project's entries and tasks
     await loadEntries();
+    await loadTasks();
     renderAll();
 
     // Save current project setting
     await saveSettings({
       darkMode: darkMode,
+      autoCreateTasks: autoCreateTasks,
       currentProject: currentProjectId,
     });
 
@@ -485,8 +831,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Save preference to IndexedDB
     darkMode = isDark;
-    saveSettings({ darkMode }).catch(err => {
+    saveSettings({
+      darkMode: darkMode,
+      autoCreateTasks: autoCreateTasks,
+      currentProject: currentProjectId,
+    }).catch(err => {
       console.error("Failed to save theme setting:", err);
+    });
+  }
+
+  // Toggle auto-create tasks setting
+  function toggleAutoCreateTasks(enabled) {
+    autoCreateTasks = enabled;
+    if (autoCreateTasksToggle) {
+      autoCreateTasksToggle.checked = enabled;
+    }
+
+    // Save preference to IndexedDB
+    saveSettings({
+      darkMode: darkMode,
+      autoCreateTasks: autoCreateTasks,
+      currentProject: currentProjectId,
+    }).catch(err => {
+      console.error("Failed to save auto-create tasks setting:", err);
     });
   }
 
@@ -1069,16 +1436,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const newNotes = easyMDEInstance.value(); // Get content from EasyMDE
-    entries[currentlyEditingIndex].notes = newNotes.trim()
-      ? newNotes.trim()
-      : undefined;
+    const noteContent = easyMDEInstance.value();
+    entries[currentlyEditingIndex].notes = noteContent;
 
     console.log(
       "Saving notes for index:",
       currentlyEditingIndex,
       entries[currentlyEditingIndex]
     );
+
+    // Extract and create tasks from markdown task lists
+    // Pass the entire entry object so we can get its ID and description
+    createTasksFromMarkdown(noteContent, entries[currentlyEditingIndex]);
 
     saveEntries()
       .then(() => {
@@ -1098,7 +1467,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Form Handling ---
   function showAddEntryForm() {
+    console.log("showAddEntryForm called!"); // Add this line for debugging
     addEntryContainer.classList.remove("hidden");
+    addEntryContainer.style.display = "block"; // Ensure it's displayed
     descriptionInput.focus();
     showAddFormBtn.classList.add("hidden");
   }
@@ -1184,6 +1555,36 @@ document.addEventListener("DOMContentLoaded", () => {
           entries.splice(indexToDelete, 0, deletedEntry);
           renderAll();
         });
+    }
+  }
+
+  // Handle deletion of a task
+  async function handleDeleteTask(taskId) {
+    const taskToDelete = tasks.find(task => task.id === taskId);
+    if (!taskToDelete) {
+      console.error("Task not found for deletion:", taskId);
+      return;
+    }
+
+    if (
+      confirm(
+        `Are you sure you want to delete the task "${taskToDelete.description}"?`
+      )
+    ) {
+      console.log("Deleting task with ID:", taskId, taskToDelete);
+      // Remove from the local array
+      tasks = tasks.filter(task => task.id !== taskId);
+
+      try {
+        await saveTasks(); // Save changes to IndexedDB
+        renderTasks(); // Re-render the tasks list
+      } catch (err) {
+        console.error("Failed to delete task:", err);
+        alert("Failed to delete task. Please try again.");
+        // Re-add the task to the local array if save failed
+        tasks.push(taskToDelete);
+        renderTasks();
+      }
     }
   }
 
@@ -1635,42 +2036,82 @@ document.addEventListener("DOMContentLoaded", () => {
     return true;
   }
 
+  // --- Task Management Functions ---
+  // Render tasks list
+  function renderTasks() {
+    if (!tasksList) return;
+
+    tasksList.innerHTML = "";
+
+    if (tasks.length === 0) {
+      tasksList.innerHTML = `
+        <div class="p-4 text-center text-gray-500">
+          No tasks yet. Add your first task to get started!
+        </div>
+      `;
+      return;
+    }
+
+    // Sort tasks: incomplete first, then by date created
+    const sortedTasks = [...tasks].sort((a, b) => {
+      if (a.completed !== b.completed) {
+        return a.completed ? 1 : -1; // Incomplete tasks first
+      }
+      return new Date(b.dateCreated) - new Date(a.dateCreated); // Newest first
+    });
+
+    sortedTasks.forEach(task => {
+      const taskElement = document.createElement("div");
+      taskElement.className = "task-item";
+
+      const dateCreated = new Date(task.dateCreated);
+      const formattedDate = dateCreated.toLocaleDateString();
+
+      let originNoteHtml = "";
+      if (task.originNoteName) {
+        originNoteHtml = `<span class="text-gray-500 text-sm ml-2">(From ${task.originNoteName})</span>`;
+      }
+
+      taskElement.innerHTML = `
+        <div class="task-checkbox ${task.completed ? "completed" : ""}"
+             data-task-id="${task.id}"></div>
+        <div class="task-content">
+          <div class="task-description ${task.completed ? "completed" : ""}">${
+        task.description
+      }</div>
+          <div class="task-date">Created: ${formattedDate}${originNoteHtml}</div>
+        </div>
+        <div class="task-actions">
+          <button class="task-delete-btn" data-task-id="${task.id}">
+            🗑️
+          </button>
+        </div>
+      `;
+
+      tasksList.appendChild(taskElement);
+    });
+  }
+
   // --- Initialization ---
   function renderAll() {
     // Only render main view components if not editing
     if (currentlyEditingIndex === null) {
-      renderTable();
       renderProgress();
       renderChart();
+      if (activeTab === "entries") {
+        renderTable();
+      } else if (activeTab === "tasks") {
+        renderTasks();
+      }
     } else {
       // If somehow renderAll is called while editing, just ensure table is updated
       // This might happen if an error occurs during save/cancel
-      renderTable();
+      if (activeTab === "entries") {
+        renderTable();
+      } else if (activeTab === "tasks") {
+        renderTasks();
+      }
     }
-  }
-
-  // --- Event Listeners ---
-  form.addEventListener("submit", handleAddEntry);
-  showAddFormBtn.addEventListener("click", showAddEntryForm);
-  cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
-  settingsBtn.addEventListener("click", toggleSettingsDropdown);
-  projectBtn.addEventListener("click", toggleProjectDropdown);
-  createProjectBtn.addEventListener("click", handleCreateProject);
-  importBtn.addEventListener("click", handleImport);
-  importFileInput.addEventListener("change", handleFileImport);
-  exportBtn.addEventListener("click", handleExport);
-  chartTypeToggle.addEventListener("change", handleChartTypeToggle);
-  saveNoteBtn.addEventListener("click", handleSaveNote);
-  cancelEditBtn.addEventListener("click", handleCancelEdit);
-
-  // Close dropdowns when clicking outside
-  document.addEventListener("click", handleDocumentClick);
-
-  // Theme toggle event listener
-  if (themeToggle) {
-    themeToggle.addEventListener("change", () => {
-      setTheme(themeToggle.checked);
-    });
   }
 
   // Initialize the application
@@ -1692,9 +2133,10 @@ document.addEventListener("DOMContentLoaded", () => {
         await saveProjects(projects);
       }
 
-      // Load settings and apply theme
+      // Save settings and apply theme
       const settings = await loadSettings();
       darkMode = settings.darkMode;
+      autoCreateTasks = settings.autoCreateTasks !== false; // Default to true
       currentProjectId = settings.currentProject || "default";
 
       // Ensure current project exists
@@ -1702,6 +2144,7 @@ document.addEventListener("DOMContentLoaded", () => {
         currentProjectId = "default";
         await saveSettings({
           darkMode: darkMode,
+          autoCreateTasks: autoCreateTasks,
           currentProject: currentProjectId,
         });
       }
@@ -1710,11 +2153,17 @@ document.addEventListener("DOMContentLoaded", () => {
       currentProjectName.textContent = projects[currentProjectId].name;
       setTheme(darkMode);
 
+      // Set auto-create tasks toggle
+      if (autoCreateTasksToggle) {
+        autoCreateTasksToggle.checked = autoCreateTasks;
+      }
+
       // Migrate legacy data to default project if needed
       await migrateLegacyData();
 
-      // Load entries for current project
+      // Load entries and tasks for current project
       await loadEntries();
+      await loadTasks();
 
       // Show main view and render
       showMainView();
@@ -1731,6 +2180,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Fallback: continue with empty data
       entries = [];
+      tasks = [];
       showMainView();
       renderAll();
     }
@@ -1957,4 +2407,255 @@ document.addEventListener("DOMContentLoaded", () => {
     // Restore original content
     cell.innerHTML = originalContent;
   }
+
+  // Tab switching functionality
+  function switchTab(tabName) {
+    activeTab = tabName;
+
+    // Update tab buttons
+    entriesTab.classList.remove("active");
+    tasksTab.classList.remove("active");
+
+    // Hide all tab contents
+    entriesContent.classList.add("hidden");
+    tasksContent.classList.add("hidden");
+
+    if (tabName === "entries") {
+      entriesTab.classList.add("active");
+      entriesContent.classList.remove("hidden");
+    } else if (tabName === "tasks") {
+      tasksTab.classList.add("active");
+      tasksContent.classList.remove("hidden");
+      // Always render tasks when switching to tasks tab
+      renderTasks();
+    }
+  }
+
+  // Handle task completion toggle
+  function handleTaskToggle(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+
+    if (task) {
+      task.completed = !task.completed;
+      console.log(
+        `Task ${taskId} toggled to ${
+          task.completed ? "completed" : "incomplete"
+        }`
+      );
+
+      saveTasks()
+        .then(() => {
+          renderTasks();
+        })
+        .catch(err => {
+          console.error("Failed to save task toggle:", err);
+          alert("Failed to update task. Please try again.");
+          // Revert the change
+          task.completed = !task.completed;
+          renderTasks();
+        });
+    }
+  }
+
+  // Handle task deletion
+  function handleTaskDelete(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+
+    if (
+      task &&
+      confirm(`Are you sure you want to delete the task "${task.description}"?`)
+    ) {
+      const taskIndex = tasks.findIndex(t => t.id === taskId);
+      tasks.splice(taskIndex, 1);
+
+      saveTasks()
+        .then(() => {
+          renderTasks();
+        })
+        .catch(err => {
+          console.error("Failed to delete task:", err);
+          alert("Failed to delete task. Please try again.");
+          // Restore the task
+          tasks.splice(taskIndex, 0, task);
+          renderTasks();
+        });
+    }
+  }
+
+  // Show add task form
+  function showAddTaskForm() {
+    addTaskContainer.classList.remove("hidden");
+    taskDescriptionInput.focus();
+
+    // Set default date to today
+    const today = new Date().toISOString().split("T")[0];
+    taskDateInput.value = today;
+  }
+
+  // Hide add task form
+  function hideAddTaskForm() {
+    addTaskContainer.classList.add("hidden");
+    resetTaskForm();
+  }
+
+  // Reset task form
+  function resetTaskForm() {
+    taskDescriptionInput.value = "";
+    taskDateInput.value = "";
+  }
+
+  // Handle add task form submission
+  function handleAddTask(event) {
+    event.preventDefault();
+
+    const description = taskDescriptionInput.value.trim();
+    const dateCreated =
+      taskDateInput.value || new Date().toISOString().split("T")[0];
+
+    if (!description) {
+      alert("Please enter a task description.");
+      taskDescriptionInput.focus();
+      return;
+    }
+
+    // Create new task
+    const newTask = {
+      id: Date.now(), // Simple integer ID
+      description: description,
+      completed: false,
+      dateCreated: dateCreated,
+      projectId: currentProjectId,
+    };
+
+    tasks.push(newTask);
+    console.log("Adding new task:", newTask);
+
+    saveTasks()
+      .then(() => {
+        renderTasks();
+        hideAddTaskForm();
+      })
+      .catch(err => {
+        console.error("Failed to save new task:", err);
+        alert("Failed to save task. Please try again.");
+        // Remove the task from local array if save failed
+        tasks.pop();
+      });
+  }
+
+  // Event listeners
+  if (entriesTab) {
+    entriesTab.addEventListener("click", () => switchTab("entries"));
+  }
+
+  if (tasksTab) {
+    tasksTab.addEventListener("click", () => switchTab("tasks"));
+  }
+
+  if (showAddTaskBtn) {
+    showAddTaskBtn.addEventListener("click", showAddTaskForm);
+  }
+
+  if (cancelAddTaskBtn) {
+    cancelAddTaskBtn.addEventListener("click", hideAddTaskForm);
+  }
+
+  if (addTaskForm) {
+    addTaskForm.addEventListener("submit", handleAddTask);
+  }
+
+  // Add event listeners for the Add Entry form buttons
+  if (form) {
+    form.addEventListener("submit", handleAddEntry);
+  }
+
+  if (showAddFormBtn) {
+    showAddFormBtn.addEventListener("click", showAddEntryForm);
+  }
+
+  if (cancelAddFormBtn) {
+    cancelAddFormBtn.addEventListener("click", hideAddEntryForm);
+  }
+
+  if (chartTypeToggle) {
+    chartTypeToggle.addEventListener("change", handleChartTypeToggle);
+  }
+
+  if (themeToggle) {
+    themeToggle.addEventListener("change", () => {
+      setTheme(themeToggle.checked);
+    });
+  }
+
+  if (autoCreateTasksToggle) {
+    autoCreateTasksToggle.addEventListener("change", () => {
+      toggleAutoCreateTasks(autoCreateTasksToggle.checked);
+    });
+  }
+
+  if (settingsBtn) {
+    settingsBtn.addEventListener("click", toggleSettingsDropdown);
+  }
+
+  if (projectBtn) {
+    projectBtn.addEventListener("click", toggleProjectDropdown);
+  }
+
+  if (createProjectBtn) {
+    createProjectBtn.addEventListener("click", handleCreateProject);
+  }
+
+  if (exportBtn) {
+    exportBtn.addEventListener("click", handleExport);
+  }
+
+  if (importBtn) {
+    importBtn.addEventListener("click", handleImport);
+  }
+
+  if (importFileInput) {
+    importFileInput.addEventListener("change", handleFileImport);
+  }
+
+  if (scanTasksBtn) {
+    scanTasksBtn.addEventListener("click", () => {
+      hideSettingsDropdown();
+      scanAllEntriesForTasks();
+    });
+  }
+
+  if (saveNoteBtn) {
+    saveNoteBtn.addEventListener("click", handleSaveNote);
+  }
+
+  if (cancelEditBtn) {
+    cancelEditBtn.addEventListener("click", handleCancelEdit);
+  }
+
+  // Handle clicks outside dropdowns
+  document.addEventListener("click", handleDocumentClick);
+
+  // Event delegation for task item interactions
+  tasksList.addEventListener("click", event => {
+    const target = event.target;
+
+    // Handle task checkbox toggle
+    if (target.classList.contains("task-checkbox")) {
+      const taskId = parseInt(target.getAttribute("data-task-id"), 10);
+      handleTaskToggle(taskId);
+    }
+
+    // Handle task delete button click
+    if (
+      target.classList.contains("task-delete-btn") ||
+      target.closest(".task-delete-btn")
+    ) {
+      const button = target.closest(".task-delete-btn");
+      const taskId = parseInt(button.getAttribute("data-task-id"), 10);
+      handleDeleteTask(taskId);
+    }
+  });
+
+  // Initialize the application
+  initializeApp();
 });
