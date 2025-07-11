@@ -2746,7 +2746,27 @@ document.addEventListener("DOMContentLoaded", () => {
       dayDiv.appendChild(dateSpan);
 
       const hoursSpan = document.createElement("span");
-      hoursSpan.classList.add("text-sm", "text-gray-600");
+      hoursSpan.classList.add("text-sm");
+
+      const today = new Date();
+      const isToday =
+        date.getDate() === today.getDate() &&
+        date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear();
+
+      if (isToday) {
+        dayDiv.classList.add("bg-gray-200");
+        dayDiv.classList.remove("bg-black", "text-white");
+        dateSpan.classList.remove("text-white");
+        dateSpan.classList.add("text-black");
+        hoursSpan.classList.remove("text-white");
+        hoursSpan.classList.add("text-black");
+      } else if (hoursForDay > 0) {
+        dayDiv.classList.add("bg-black", "text-white");
+        hoursSpan.classList.add("text-white");
+      } else {
+        hoursSpan.classList.add("text-gray-600");
+      }
       hoursSpan.textContent = hoursForDay > 0 ? `${hoursForDay} hrs` : "";
       dayDiv.appendChild(hoursSpan);
 
