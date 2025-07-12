@@ -52,6 +52,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const taskDateInput = document.getElementById("task-date");
   const tasksList = document.getElementById("tasks-list");
 
+  // Calendar-related elements
+  const calendarTab = document.getElementById("calendar-tab");
+  const calendarContent = document.getElementById("calendar-content");
+  const prevMonthBtn = document.getElementById("prev-month");
+  const nextMonthBtn = document.getElementById("next-month");
+  const currentMonthYearDisplay = document.getElementById("current-month-year");
+  const calendarGrid = document.getElementById("calendar-grid");
+
   // New elements for note editor
   const mainContentDiv = document.getElementById("main-content");
   const noteEditorSection = document.getElementById("note-editor-section");
@@ -65,6 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let easyMDEInstance = null; // To hold the EasyMDE editor instance
   let currentProjectId = "default"; // Current active project
   let projects = {}; // Store all projects data
+  let currentDate = new Date(); // For calendar navigation
 
   // Add check for marked library after variable declarations
   console.log(
@@ -2102,6 +2111,8 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTable();
       } else if (activeTab === "tasks") {
         renderTasks();
+      } else if (activeTab === "calendar") {
+        renderCalendar();
       }
     } else {
       // If somehow renderAll is called while editing, just ensure table is updated
@@ -2110,6 +2121,8 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTable();
       } else if (activeTab === "tasks") {
         renderTasks();
+      } else if (activeTab === "calendar") {
+        renderCalendar();
       }
     }
   }
@@ -2165,9 +2178,14 @@ document.addEventListener("DOMContentLoaded", () => {
       await loadEntries();
       await loadTasks();
 
-      // Show main view and render
+      // Set initial active tab
+      if (settings.activeTab) {
+        activeTab = settings.activeTab;
+      }
+
+      // Show main view and render based on active tab
       showMainView();
-      renderAll();
+      switchTab(activeTab);
 
       console.log(
         "10k Hours Tracker initialized successfully with multi-project support."
@@ -2411,24 +2429,31 @@ document.addEventListener("DOMContentLoaded", () => {
   // Tab switching functionality
   function switchTab(tabName) {
     activeTab = tabName;
-
     // Update tab buttons
     entriesTab.classList.remove("active");
     tasksTab.classList.remove("active");
+    calendarTab.classList.remove("active");
 
     // Hide all tab contents
     entriesContent.classList.add("hidden");
     tasksContent.classList.add("hidden");
+    calendarContent.classList.add("hidden");
 
+    // Show active tab content
     if (tabName === "entries") {
       entriesTab.classList.add("active");
       entriesContent.classList.remove("hidden");
+      renderAll();
     } else if (tabName === "tasks") {
       tasksTab.classList.add("active");
       tasksContent.classList.remove("hidden");
-      // Always render tasks when switching to tasks tab
       renderTasks();
+    } else if (tabName === "calendar") {
+      calendarTab.classList.add("active");
+      calendarContent.classList.remove("hidden");
+      renderCalendar();
     }
+    saveSettings({ activeTab: tabName });
   }
 
   // Handle task completion toggle
@@ -2656,6 +2681,127 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Initialize the application
-  initializeApp();
+  // Calendar functions
+  function renderCalendar() {
+    currentMonthYearDisplay.textContent = currentDate.toLocaleString(
+      "default",
+      {
+        month: "long",
+        year: "numeric",
+      }
+    );
+
+    // Clear previous calendar days
+    while (calendarGrid.children.length > 7) {
+      // Keep the day labels (Sun-Sat)
+      calendarGrid.removeChild(calendarGrid.lastChild);
+    }
+
+    const firstDayOfMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      1
+    );
+    const lastDayOfMonth = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      0
+    );
+    const startDay = firstDayOfMonth.getDay(); // 0 for Sunday, 1 for Monday, etc.
+    const totalDays = lastDayOfMonth.getDate();
+
+    // Add empty divs for preceding days
+    for (let i = 0; i < startDay; i++) {
+      const emptyDiv = document.createElement("div");
+      calendarGrid.appendChild(emptyDiv);
+    }
+
+    // Add days of the month
+    for (let day = 1; day <= totalDays; day++) {
+      const dayDiv = document.createElement("div");
+      dayDiv.classList.add(
+        "p-2",
+        "border",
+        "border-gray-200",
+        "rounded",
+        "flex",
+        "flex-col",
+        "items-center",
+        "justify-between",
+        "min-h-[80px]"
+      );
+
+      const date = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        day
+      );
+      const formattedDate = date.toISOString().split("T")[0]; // YYYY-MM-DD
+
+      const hoursForDay = getLearningHoursForDate(formattedDate);
+
+      const dateSpan = document.createElement("span");
+      dateSpan.classList.add("font-bold", "text-lg");
+      dateSpan.textContent = day;
+      dayDiv.appendChild(dateSpan);
+
+      const hoursSpan = document.createElement("span");
+      hoursSpan.classList.add("text-sm");
+
+      const today = new Date();
+      const isToday =
+        date.getDate() === today.getDate() &&
+        date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear();
+
+      if (isToday) {
+        dayDiv.classList.add("bg-gray-200");
+        dayDiv.classList.remove("bg-black", "text-white");
+        dateSpan.classList.remove("text-white");
+        dateSpan.classList.add("text-black");
+        hoursSpan.classList.remove("text-white");
+        hoursSpan.classList.add("text-black");
+      } else if (hoursForDay > 0) {
+        dayDiv.classList.add("bg-black", "text-white");
+        hoursSpan.classList.add("text-white");
+      } else {
+        hoursSpan.classList.add("text-gray-600");
+      }
+      hoursSpan.textContent = hoursForDay > 0 ? `${hoursForDay} hrs` : "";
+      dayDiv.appendChild(hoursSpan);
+
+      calendarGrid.appendChild(dayDiv);
+    }
+  }
+
+  function getLearningHoursForDate(dateString) {
+    let totalHours = 0;
+    entries.forEach(entry => {
+      if (entry.date === dateString) {
+        totalHours += parseFloat(entry.hours);
+      }
+    });
+    return totalHours;
+  }
+
+  // Event Listeners for Calendar Navigation
+  prevMonthBtn.addEventListener("click", () => {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+    renderCalendar();
+  });
+
+  nextMonthBtn.addEventListener("click", () => {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    renderCalendar();
+  });
+
+  // Event Listeners for Tabs
+  entriesTab.addEventListener("click", () => switchTab("entries"));
+  tasksTab.addEventListener("click", () => switchTab("tasks"));
+  calendarTab.addEventListener("click", () => switchTab("calendar"));
+
+  // Event Listeners for Add Entry Form
+  if (showAddFormBtn) {
+    showAddFormBtn.addEventListener("click", showAddEntryForm);
+  }
 });
