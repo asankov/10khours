@@ -12,27 +12,6 @@ function App() {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
-  useEffect(() => {
-    localStorage.setItem('entries', JSON.stringify(entries));
-    renderChart();
-  }, [entries, renderChart]);
-
-  const addEntry = e => {
-    e.preventDefault();
-    if (!date || !hours) return;
-    const newEntry = { id: Date.now(), date, hours: parseFloat(hours), description };
-    setEntries([...entries, newEntry]);
-    setDate('');
-    setHours('');
-    setDescription('');
-  };
-
-  const deleteEntry = id => {
-    setEntries(entries.filter(e => e.id !== id));
-  };
-
-  const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
-
   const renderChart = useCallback(() => {
     if (!chartRef.current) return;
     const ctx = chartRef.current.getContext('2d');
@@ -76,6 +55,29 @@ function App() {
       },
     });
   }, [entries]);
+
+
+  useEffect(() => {
+    localStorage.setItem('entries', JSON.stringify(entries));
+    renderChart();
+  }, [entries, renderChart]);
+
+  const addEntry = e => {
+    e.preventDefault();
+    if (!date || !hours) return;
+    const newEntry = { id: Date.now(), date, hours: parseFloat(hours), description };
+    setEntries([...entries, newEntry]);
+    setDate('');
+    setHours('');
+    setDescription('');
+  };
+
+  const deleteEntry = id => {
+    setEntries(entries.filter(e => e.id !== id));
+  };
+
+  const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
+
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-4">
