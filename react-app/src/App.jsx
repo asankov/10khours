@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Chart } from 'chart.js/auto';
-import './App.css';
 
 function App() {
   const [entries, setEntries] = useState(() => {
@@ -13,11 +12,10 @@ function App() {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     localStorage.setItem('entries', JSON.stringify(entries));
     renderChart();
-  }, [entries]);
+  }, [entries, renderChart]);
 
   const addEntry = e => {
     e.preventDefault();
@@ -35,7 +33,7 @@ function App() {
 
   const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
 
-  const renderChart = () => {
+  const renderChart = useCallback(() => {
     if (!chartRef.current) return;
     const ctx = chartRef.current.getContext('2d');
     const dataMap = {};
@@ -77,13 +75,19 @@ function App() {
         },
       },
     });
-  };
+  }, [entries]);
 
   return (
-    <div className="tracker">
-      <h1>10,000 Hours Tracker (React)</h1>
-      <form onSubmit={addEntry} className="entry-form">
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} required />
+    <div className="max-w-2xl mx-auto p-6 space-y-4">
+      <h1 className="text-2xl font-bold">10,000 Hours Tracker (React)</h1>
+      <form onSubmit={addEntry} className="flex flex-wrap items-end gap-2">
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          required
+          className="border rounded p-2"
+        />
         <input
           type="number"
           step="0.1"
@@ -92,40 +96,55 @@ function App() {
           value={hours}
           onChange={e => setHours(e.target.value)}
           required
+          className="border rounded p-2 w-24"
         />
         <input
           type="text"
           placeholder="Description"
           value={description}
           onChange={e => setDescription(e.target.value)}
+          className="flex-1 border rounded p-2"
         />
-        <button type="submit">Add</button>
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-3 py-2 rounded"
+        >
+          Add
+        </button>
       </form>
 
-      <h2>Total Hours: {totalHours}</h2>
-      <div className="progress-bar">
-        <div className="progress" style={{ width: `${(totalHours / 10000) * 100}%` }} />
+      <h2 className="text-lg font-semibold">Total Hours: {totalHours}</h2>
+      <div className="bg-gray-200 h-4 rounded w-full">
+        <div
+          className="bg-green-500 h-full rounded"
+          style={{ width: `${(totalHours / 10000) * 100}%` }}
+        />
       </div>
 
-      <canvas ref={chartRef} />
+      <canvas ref={chartRef} className="w-full" />
 
-      <table className="entries">
-        <thead>
+      <table className="w-full border-collapse">
+        <thead className="bg-gray-100">
           <tr>
-            <th>Date</th>
-            <th>Description</th>
-            <th>Hours</th>
-            <th />
+            <th className="border p-2 text-left">Date</th>
+            <th className="border p-2 text-left">Description</th>
+            <th className="border p-2 text-right">Hours</th>
+            <th className="border p-2" />
           </tr>
         </thead>
         <tbody>
           {entries.map(entry => (
             <tr key={entry.id}>
-              <td>{entry.date}</td>
-              <td>{entry.description}</td>
-              <td>{entry.hours}</td>
-              <td>
-                <button onClick={() => deleteEntry(entry.id)}>Delete</button>
+              <td className="border p-2">{entry.date}</td>
+              <td className="border p-2">{entry.description}</td>
+              <td className="border p-2 text-right">{entry.hours}</td>
+              <td className="border p-2 text-center">
+                <button
+                  onClick={() => deleteEntry(entry.id)}
+                  className="text-sm text-red-600 hover:underline"
+                >
+                  Delete
+                </button>
               </td>
             </tr>
           ))}

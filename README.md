@@ -42,7 +42,7 @@ No build process needed. Simply open the `index.html` file in your web browser.
 
 ## React Version
 
-A new React implementation lives in the `react-app` directory. Install dependencies and start the dev server:
+A new React implementation lives in the `react-app` directory. It also pulls in Tailwind CSS via CDN for styling. Install dependencies and start the dev server:
 
 ```bash
 cd react-app
