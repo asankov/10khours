@@ -611,7 +611,12 @@ document.addEventListener("DOMContentLoaded", () => {
     return new Promise((resolve, reject) => {
       if (!dbReady || !db) {
         console.warn("Database not ready for settings");
-        resolve({ darkMode: false, currentProject: "default" });
+        resolve({
+          darkMode: false,
+          currentProject: "default",
+          autoCreateTasks: true,
+          activeTab: "entries",
+        });
         return;
       }
 
@@ -632,6 +637,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const result = {
           darkMode: settingsMap.darkMode || false,
           currentProject: settingsMap.currentProject || "default",
+          // default to true if value not explicitly false
+          autoCreateTasks: settingsMap.autoCreateTasks !== false,
+          activeTab: settingsMap.activeTab || "entries",
         };
 
         console.log("Loaded settings:", result);
@@ -640,7 +648,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       request.onerror = () => {
         console.error("Failed to load settings:", request.error);
-        resolve({ darkMode: false, currentProject: "default" });
+        resolve({
+          darkMode: false,
+          currentProject: "default",
+          autoCreateTasks: true,
+          activeTab: "entries",
+        });
       };
     });
   }
