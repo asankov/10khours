@@ -39,3 +39,13 @@ No build process needed. Simply open the `index.html` file in your web browser.
   - Calculating total hours and updating the progress bar.
   - Generating and updating the progress chart using Chart.js.
 - **Styling:** Primarily uses utility classes from Tailwind CSS for a clean look.
+
+## React Version
+
+A new React implementation lives in the `react-app` directory. Install dependencies and start the dev server:
+
+```bash
+cd react-app
+npm install
+npm run dev
+```
