@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useApp } from '../contexts/AppContext';
-import NoteEditor from './NoteEditor';
 
 function EntriesTab() {
   const { state, actions } = useApp();
@@ -58,6 +57,13 @@ function EntriesTab() {
   };
 
   const handleEdit = (index) => {
+    if (state.isLoading) {
+      return; // Don't allow editing while app is loading
+    }
+    if (index < 0 || index >= state.entries.length) {
+      console.error('Invalid entry index:', index, 'Total entries:', state.entries.length);
+      return;
+    }
     actions.setEditing(true, index);
   };
 
@@ -110,10 +116,6 @@ function EntriesTab() {
   };
 
   const sortedEntries = [...state.entries].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  if (state.isEditing) {
-    return <NoteEditor />;
-  }
 
   return (
     <>
@@ -210,7 +212,8 @@ function EntriesTab() {
               </tr>
             ) : (
               sortedEntries.map((entry, sortedIndex) => {
-                const originalIndex = state.entries.findIndex((e) => e === entry);
+                const originalIndex = state.entries.findIndex((e) => e._id === entry._id);
+                
                 
                 // Simplified notes preview
                 let notesPreviewHtml = (
