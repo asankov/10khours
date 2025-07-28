@@ -148,9 +148,9 @@ function NoteEditor() {
   }
 
   return (
-    <section className="fixed inset-0 z-50 bg-white dark:bg-gray-900 p-6 flex flex-col">
+    <section className="fixed inset-0 z-50 p-6 flex flex-col" style={{ backgroundColor: 'var(--bg-color)' }}>
       <div className="mb-4">
-        <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
+        <h2 className="text-2xl font-semibold mb-4" style={{ color: 'var(--text-color)' }}>
           Edit Note for{' '}
           {isEditingTitle ? (
             <input
@@ -183,7 +183,8 @@ function NoteEditor() {
               />
             ) : (
               <span
-                className="editable-date cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900 px-2 py-1 rounded text-gray-600 dark:text-gray-400 text-sm"
+                className="editable-date cursor-pointer px-2 py-1 rounded text-sm"
+                style={{ color: 'var(--dark-gray)' }}
                 onClick={handleDateClick}
               >
                 📅 {date}
