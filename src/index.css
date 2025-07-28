@@ -1,0 +1,622 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+:root {
+  --primary-color: #111827;
+  --light-gray: #f7f7f7;
+  --medium-gray: #e5e7eb;
+  --dark-gray: #6b7280;
+  --text-color: #111827;
+  --bg-color: #f9fafb;
+  --card-bg: white;
+  --card-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.1),
+    0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --border-radius: 8px;
+  --header-bg: white;
+  --form-bg: #f9fafb;
+}
+
+/* Dark mode variables */
+[data-theme="dark"] {
+  --primary-color: #6366f1;
+  --light-gray: #1f2937;
+  --medium-gray: #374151;
+  --dark-gray: #9ca3af;
+  --text-color: #f3f4f6;
+  --bg-color: #111827;
+  --card-bg: #1f2937;
+  --card-shadow:
+    0 1px 3px 0 rgba(0, 0, 0, 0.3),
+    0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  --header-bg: #1f2937;
+  --form-bg: #111827;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue",
+    sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  line-height: 1.5;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* Header and top navigation */
+.site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid var(--medium-gray);
+  background-color: var(--header-bg);
+  transition: background-color 0.3s ease;
+}
+
+.site-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-color);
+  text-decoration: none;
+}
+
+.auth-links {
+  margin-left: auto;
+}
+
+/* Card styles */
+.card {
+  background-color: var(--card-bg);
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+  transition:
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.card-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--medium-gray);
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+/* Progress visualization */
+.chart-container {
+  position: relative;
+  height: 400px;
+  width: 100%;
+}
+
+/* Progress card specific */
+.progress-card h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.progress-subtitle {
+  color: var(--dark-gray);
+  margin-bottom: 2rem;
+}
+
+/* Progress bar */
+.progress-outer {
+  width: 100%;
+  background-color: var(--light-gray);
+  border-radius: 9999px;
+  height: 0.75rem;
+}
+
+.progress-inner {
+  background-color: var(--primary-color);
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+/* Table styles */
+.entries-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.entries-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 500;
+  color: var(--dark-gray);
+  border-bottom: 1px solid var(--medium-gray);
+}
+
+.entries-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--medium-gray);
+}
+
+/* Button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: #4338ca;
+}
+
+.btn-secondary {
+  background-color: white;
+  color: var(--text-color);
+  border: 1px solid var(--medium-gray);
+}
+
+.btn-secondary:hover {
+  background-color: var(--light-gray);
+}
+
+.btn-icon {
+  margin-right: 0.5rem;
+}
+
+/* Form styles */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--medium-gray);
+  border-radius: 0.375rem;
+  transition: border-color 0.2s;
+  background-color: var(--card-bg);
+  color: var(--text-color);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+/* Toggle Switch styles */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.4s;
+}
+
+input:checked+.slider {
+  background-color: var(--primary-color);
+}
+
+input:focus+.slider {
+  box-shadow: 0 0 1px var(--primary-color);
+}
+
+input:checked+.slider:before {
+  transform: translateX(24px);
+}
+
+.slider.round {
+  border-radius: 24px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
+
+/* Notes preview fade effect */
+.notes-preview {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.notes-preview::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(to right,
+      rgba(255, 255, 255, 0),
+      var(--card-bg));
+  pointer-events: none;
+}
+
+[data-theme="dark"] .notes-preview::after {
+  background: linear-gradient(to right,
+      rgba(31, 41, 55, 0),
+      var(--card-bg));
+}
+
+/* Inline editing styles */
+.editable-cell {
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.2s;
+}
+
+.editable-cell:hover {
+  background-color: rgba(90, 90, 95, 0.05);
+}
+
+.editable-cell:hover::after {
+  content: "✏️";
+  font-size: 0.8em;
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.3;
+}
+
+.inline-edit-input {
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--primary-color);
+  border-radius: 0.25rem;
+  font-size: inherit;
+  font-family: inherit;
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(92, 92, 95, 0.2);
+}
+
+/* Settings dropdown styles */
+.settings-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1000;
+  min-width: 150px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--medium-gray);
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+  margin-top: 0.25rem;
+  overflow: hidden;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.settings-dropdown.hidden {
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+}
+
+.settings-dropdown:not(.hidden) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.dropdown-item {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.dropdown-item:hover {
+  background-color: var(--light-gray);
+}
+
+.dropdown-item:not(:last-child) {
+  border-bottom: 1px solid var(--medium-gray);
+}
+
+.dropdown-item .btn-icon {
+  margin-right: 0.5rem;
+}
+
+/* Project selector styles */
+.project-selector {
+  position: relative;
+}
+
+.project-button {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: var(--light-gray);
+  border: 1px solid var(--medium-gray);
+  border-radius: var(--border-radius);
+  color: var(--text-color);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.project-button:hover {
+  background-color: var(--medium-gray);
+}
+
+.project-arrow {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  transition: transform 0.2s ease;
+}
+
+.project-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  min-width: 200px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--medium-gray);
+  border-radius: var(--border-radius);
+  box-shadow: var(--card-shadow);
+  margin-top: 0.25rem;
+  overflow: hidden;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.project-dropdown.hidden {
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+}
+
+.project-dropdown:not(.hidden) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.project-item,
+.create-project-item {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.project-item:hover,
+.create-project-item:hover {
+  background-color: var(--light-gray);
+}
+
+.project-item.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.project-item.active:hover {
+  background-color: var(--primary-color);
+  opacity: 0.9;
+}
+
+.create-project-item {
+  border-top: 1px solid var(--medium-gray);
+  font-weight: 500;
+}
+
+.create-project-item .btn-icon {
+  margin-right: 0.5rem;
+}
+
+.project-name {
+  flex: 1;
+  text-align: left;
+}
+
+.project-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.project-item:hover .project-actions {
+  opacity: 1;
+}
+
+.project-rename,
+.project-delete {
+  font-size: 0.75rem;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.project-rename:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.project-delete:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+/* Tab styles */
+.tab-button {
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.tab-button.active {
+  border-bottom-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.tab-button:hover {
+  border-bottom-color: var(--dark-gray);
+}
+
+.tab-content {
+  display: block;
+}
+
+.tab-content.hidden {
+  display: none;
+}
+
+/* Task styles */
+.task-item {
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: background-color 0.2s;
+}
+
+.task-item:hover {
+  background-color: var(--light-gray);
+}
+
+.task-checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--medium-gray);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-checkbox:hover {
+  border-color: var(--primary-color);
+}
+
+.task-checkbox.completed {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.task-checkbox.completed::after {
+  content: "✓";
+  color: white;
+  font-weight: bold;
+  font-size: 0.875rem;
+}
+
+.task-content {
+  flex: 1;
+}
+
+.task-description {
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.task-description.completed {
+  text-decoration: line-through;
+  color: var(--dark-gray);
+}
+
+.task-date {
+  font-size: 0.875rem;
+  color: var(--dark-gray);
+  margin-top: 0.25rem;
+}
+
+.task-actions {
+  display: flex;
+  gap: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.task-item:hover .task-actions {
+  opacity: 1;
+}
+
+.task-delete-btn {
+  padding: 0.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: background-color 0.2s;
+  color: var(--dark-gray);
+}
+
+.task-delete-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
