@@ -104,7 +104,7 @@ function appReducer(state, action) {
       return { 
         ...state, 
         isEditing: action.payload.isEditing,
-        editingEntryIndex: action.payload.index || null
+        editingEntryIndex: action.payload.index !== undefined ? action.payload.index : null
       };
     
     default:

@@ -12,7 +12,7 @@ function NoteEditor() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDate, setIsEditingDate] = useState(false);
 
-  const currentEntry = state.entries[state.editingEntryIndex];
+  const currentEntry = state.editingEntryIndex !== null ? state.entries[state.editingEntryIndex] : null;
 
   useEffect(() => {
     if (currentEntry) {
@@ -218,25 +218,6 @@ function NoteEditor() {
         </button>
       </div>
 
-      <style jsx>{`
-        .EasyMDEContainer {
-          display: flex !important;
-          flex-direction: column !important;
-          flex-grow: 1 !important;
-          overflow: hidden !important;
-          height: 100% !important;
-        }
-
-        .CodeMirror {
-          flex-grow: 1 !important;
-          height: auto !important;
-          min-height: 300px !important;
-        }
-
-        .CodeMirror-scroll {
-          min-height: 300px !important;
-        }
-      `}</style>
     </section>
   );
 }

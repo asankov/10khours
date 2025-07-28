@@ -631,3 +631,22 @@ input:checked+.slider:before {
   background-color: rgba(239, 68, 68, 0.1);
   color: #ef4444;
 }
+
+/* EasyMDE Editor Styles */
+.EasyMDEContainer {
+  display: flex !important;
+  flex-direction: column !important;
+  flex-grow: 1 !important;
+  overflow: hidden !important;
+  height: 100% !important;
+}
+
+.CodeMirror {
+  flex-grow: 1 !important;
+  height: auto !important;
+  min-height: 300px !important;
+}
+
+.CodeMirror-scroll {
+  min-height: 300px !important;
+}
