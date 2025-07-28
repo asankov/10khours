@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const exportBtn = document.getElementById("export-btn");
   const scanTasksBtn = document.getElementById("scan-tasks-btn");
   const autoCreateTasksToggle = document.getElementById(
-    "auto-create-tasks-toggle"
+    "auto-create-tasks-toggle",
   );
   const descriptionInput = document.getElementById("description");
   const hoursInput = document.getElementById("hours");
@@ -79,7 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log(
     "Checking marked library on initial script load:",
     typeof marked,
-    marked
+    marked,
   );
 
   // --- IndexedDB Management ---
@@ -108,11 +108,11 @@ document.addEventListener("DOMContentLoaded", () => {
         resolve(db);
       };
 
-      request.onupgradeneeded = event => {
+      request.onupgradeneeded = (event) => {
         db = event.target.result;
         const oldVersion = event.oldVersion;
         console.log(
-          `Upgrading IndexedDB schema from version ${oldVersion} to ${DB_VERSION}...`
+          `Upgrading IndexedDB schema from version ${oldVersion} to ${DB_VERSION}...`,
         );
 
         // Create entries store
@@ -202,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       request.onsuccess = () => {
         const loadedTasks = request.result || [];
-        tasks = loadedTasks.map(task => ({
+        tasks = loadedTasks.map((task) => ({
           id: task.id,
           description: task.description,
           completed: task.completed,
@@ -213,7 +213,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }));
         console.log(
           `Loaded ${tasks.length} tasks for project ${currentProjectId}:`,
-          tasks
+          tasks,
         );
         resolve(tasks);
       };
@@ -245,7 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const index = store.index("projectId");
         const deleteRequest = index.openCursor(currentProjectId);
 
-        deleteRequest.onsuccess = event => {
+        deleteRequest.onsuccess = (event) => {
           const cursor = event.target.result;
           if (cursor) {
             cursor.delete();
@@ -263,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      tasks.forEach(task => {
+      tasks.forEach((task) => {
         const taskData = {
           description: task.description,
           completed: task.completed,
@@ -342,9 +342,10 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log(`Found ${markdownTasks.length} markdown tasks in note`);
 
     // Filter out tasks that already exist
-    const newTasks = markdownTasks.filter(taskDescription => {
+    const newTasks = markdownTasks.filter((taskDescription) => {
       return !tasks.find(
-        task => task.description.toLowerCase() === taskDescription.toLowerCase()
+        (task) =>
+          task.description.toLowerCase() === taskDescription.toLowerCase(),
       );
     });
 
@@ -356,7 +357,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Show preview of tasks that will be created
     const taskPreview = newTasks.join("\n• ");
     const confirmed = confirm(
-      `Found ${newTasks.length} new task(s) in your note:\n\n• ${taskPreview}\n\nWould you like to create these tasks?`
+      `Found ${newTasks.length} new task(s) in your note:\n\n• ${taskPreview}\n\nWould you like to create these tasks?`,
     );
 
     if (!confirmed) {
@@ -388,7 +389,7 @@ document.addEventListener("DOMContentLoaded", () => {
           renderTasks();
         }
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to save markdown tasks:", err);
       });
   }
@@ -397,15 +398,15 @@ document.addEventListener("DOMContentLoaded", () => {
   function scanAllEntriesForTasks() {
     const potentialNewTasks = [];
 
-    entries.forEach(entry => {
+    entries.forEach((entry) => {
       if (entry.notes) {
         const markdownTasks = extractMarkdownTasks(entry.notes);
 
-        markdownTasks.forEach(taskDescription => {
+        markdownTasks.forEach((taskDescription) => {
           // Check if task already exists to avoid duplicates
           const existingTask = tasks.find(
-            task =>
-              task.description.toLowerCase() === taskDescription.toLowerCase()
+            (task) =>
+              task.description.toLowerCase() === taskDescription.toLowerCase(),
           );
 
           if (!existingTask) {
@@ -427,10 +428,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Show preview of all tasks that will be created
     const taskPreview = potentialNewTasks
-      .map(task => `• ${task.description}`)
+      .map((task) => `• ${task.description}`)
       .join("\n");
     const confirmed = confirm(
-      `Found ${potentialNewTasks.length} new task(s) in your existing notes:\n\n${taskPreview}\n\nWould you like to create these tasks?`
+      `Found ${potentialNewTasks.length} new task(s) in your existing notes:\n\n${taskPreview}\n\nWould you like to create these tasks?`,
     );
 
     if (!confirmed) {
@@ -454,7 +455,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     console.log(
-      `Created ${potentialNewTasks.length} tasks from existing entries`
+      `Created ${potentialNewTasks.length} tasks from existing entries`,
     );
 
     // Save tasks to IndexedDB
@@ -468,10 +469,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Show a notification to the user
         alert(
-          `Successfully created ${potentialNewTasks.length} tasks from your existing notes!`
+          `Successfully created ${potentialNewTasks.length} tasks from your existing notes!`,
         );
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to save scanned tasks:", err);
         alert("Failed to save tasks. Please try again.");
       });
@@ -496,7 +497,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         request.onsuccess = () => {
           const loadedEntries = request.result || [];
-          entries = loadedEntries.map(entry => ({
+          entries = loadedEntries.map((entry) => ({
             date: entry.date,
             description: entry.description,
             hours: parseFloat(entry.hours),
@@ -505,7 +506,7 @@ document.addEventListener("DOMContentLoaded", () => {
           }));
           console.log(
             `Loaded ${entries.length} entries for project ${currentProjectId}:`,
-            entries
+            entries,
           );
           resolve(entries);
         };
@@ -522,9 +523,10 @@ document.addEventListener("DOMContentLoaded", () => {
           const loadedEntries = request.result || [];
           entries = loadedEntries
             .filter(
-              entry => !entry.projectId || entry.projectId === currentProjectId
+              (entry) =>
+                !entry.projectId || entry.projectId === currentProjectId,
             )
-            .map(entry => ({
+            .map((entry) => ({
               date: entry.date,
               description: entry.description,
               hours: parseFloat(entry.hours),
@@ -625,7 +627,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const settings = request.result || [];
         const settingsMap = {};
 
-        settings.forEach(setting => {
+        settings.forEach((setting) => {
           settingsMap[setting.key] = setting.value;
         });
 
@@ -661,7 +663,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const settingsKeys = Object.keys(settings);
       let saveCount = 0;
 
-      settingsKeys.forEach(key => {
+      settingsKeys.forEach((key) => {
         const request = store.put({
           key: key,
           value: settings[key],
@@ -701,7 +703,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const projectsArray = request.result || [];
         const projectsMap = {};
 
-        projectsArray.forEach(project => {
+        projectsArray.forEach((project) => {
           projectsMap[project.id] = project;
         });
 
@@ -749,7 +751,7 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
-        projectIds.forEach(projectId => {
+        projectIds.forEach((projectId) => {
           const addRequest = store.add(projectsData[projectId]);
 
           addRequest.onsuccess = () => {
@@ -844,7 +846,7 @@ document.addEventListener("DOMContentLoaded", () => {
       darkMode: darkMode,
       autoCreateTasks: autoCreateTasks,
       currentProject: currentProjectId,
-    }).catch(err => {
+    }).catch((err) => {
       console.error("Failed to save theme setting:", err);
     });
   }
@@ -861,7 +863,7 @@ document.addEventListener("DOMContentLoaded", () => {
       darkMode: darkMode,
       autoCreateTasks: autoCreateTasks,
       currentProject: currentProjectId,
-    }).catch(err => {
+    }).catch((err) => {
       console.error("Failed to save auto-create tasks setting:", err);
     });
   }
@@ -902,11 +904,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const sortedEntries = [...entries].sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
+      (a, b) => new Date(b.date) - new Date(a.date),
     );
 
     sortedEntries.forEach((entry, index) => {
-      const originalIndex = entries.findIndex(e => e === entry);
+      const originalIndex = entries.findIndex((e) => e === entry);
       const row = document.createElement("tr");
 
       // Simplified notes preview (just first ~50 chars, plain text)
@@ -932,14 +934,14 @@ document.addEventListener("DOMContentLoaded", () => {
       // Make cells clickable by adding data attributes and editable class
       row.innerHTML = `
         <td class="editable-cell" data-field="date" data-index="${originalIndex}">${
-        entry.date
-      }</td>
+          entry.date
+        }</td>
         <td class="editable-cell" data-field="description" data-index="${originalIndex}">${
-        entry.description
-      }</td>
+          entry.description
+        }</td>
         <td class="editable-cell" data-field="hours" data-index="${originalIndex}">${entry.hours.toFixed(
-        1
-      )}</td>
+          1,
+        )}</td>
         <td class="editable-cell" data-field="notes" data-index="${originalIndex}">${notesPreviewHtml}</td>
         <td class="space-x-2">
           <button class="text-black-600 hover:text-gray-400 edit-btn" data-index="${originalIndex}"><i class="fas fa-edit"></i></button>
@@ -950,15 +952,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Add event listeners to buttons
-    document.querySelectorAll(".delete-btn").forEach(button => {
+    document.querySelectorAll(".delete-btn").forEach((button) => {
       button.addEventListener("click", handleDeleteEntry);
     });
-    document.querySelectorAll(".edit-btn").forEach(button => {
+    document.querySelectorAll(".edit-btn").forEach((button) => {
       button.addEventListener("click", handleEditNoteClick);
     });
 
     // Add event listeners to editable cells
-    document.querySelectorAll(".editable-cell").forEach(cell => {
+    document.querySelectorAll(".editable-cell").forEach((cell) => {
       cell.addEventListener("click", handleCellClick);
     });
   }
@@ -978,7 +980,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log(
       "Rendering chart with " +
         (useTimeScale ? "time-based" : "evenly-spaced") +
-        " scale..."
+        " scale...",
     );
 
     // Get theme colors
@@ -993,7 +995,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Sort entries by date ascending for the chart
     const sortedEntries = [...entries].sort(
-      (a, b) => new Date(a.date) - new Date(b.date)
+      (a, b) => new Date(a.date) - new Date(b.date),
     );
 
     const labels = [];
@@ -1002,7 +1004,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Aggregate hours per day for cleaner chart
     const dailyHours = {};
-    sortedEntries.forEach(entry => {
+    sortedEntries.forEach((entry) => {
       cumulativeHours += entry.hours;
       dailyHours[entry.date] = (dailyHours[entry.date] || 0) + entry.hours; // Sum hours for the same day
     });
@@ -1010,13 +1012,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // Create chart data points based on aggregated daily hours
     let runningTotal = 0;
     const sortedDates = Object.keys(dailyHours).sort(
-      (a, b) => new Date(a) - new Date(b)
+      (a, b) => new Date(a) - new Date(b),
     );
 
     // Format data for chart based on selected type
     const dataPoints = [];
 
-    sortedDates.forEach(date => {
+    sortedDates.forEach((date) => {
       runningTotal += dailyHours[date];
       labels.push(date);
       cumulativeHoursData.push(runningTotal);
@@ -1131,7 +1133,7 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log(
       "Chart rendered with " +
         (useTimeScale ? "time-based" : "evenly-spaced") +
-        " scale."
+        " scale.",
     );
   }
 
@@ -1279,7 +1281,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update the entry's description if we're editing an entry
     if (currentlyEditingIndex !== null && entries[currentlyEditingIndex]) {
       entries[currentlyEditingIndex].description = newTitle;
-      saveEntries().catch(err => {
+      saveEntries().catch((err) => {
         console.error("Failed to save title change:", err);
       }); // Save to IndexedDB
     }
@@ -1302,7 +1304,7 @@ document.addEventListener("DOMContentLoaded", () => {
       newDate
     ) {
       entries[currentlyEditingIndex].date = newDate;
-      saveEntries().catch(err => {
+      saveEntries().catch((err) => {
         console.error("Failed to save date change:", err);
       }); // Save to IndexedDB
     }
@@ -1333,6 +1335,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleEditNoteClick(event) {
+    console.log("Edit button clicked! Event target:", event.target); // Debug log
     // Find the button element that was clicked (could be the i tag inside the button)
     let target = event.target;
 
@@ -1342,7 +1345,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const indexToEdit = parseInt(target.getAttribute("data-index"), 10);
-    console.log("Attempting to edit notes for index:", indexToEdit);
+    console.log("Attempting to edit notes for index:", indexToEdit); // Debug log
 
     if (
       isNaN(indexToEdit) ||
@@ -1351,7 +1354,9 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       console.error(
         "Invalid index for editing notes:",
-        target.getAttribute("data-index")
+        target.getAttribute("data-index"),
+        "Entries length:",
+        entries.length, // Debug log
       );
       return;
     }
@@ -1396,7 +1401,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       console.log(
         "EasyMDE instance created for entry notes:",
-        notesContent || "(empty)"
+        notesContent || "(empty)",
       );
 
       // Add custom paste handler for the smart-link feature
@@ -1424,7 +1429,7 @@ document.addEventListener("DOMContentLoaded", () => {
             cm.replaceSelection(`[${selectedText}](${pastedData})`);
 
             console.log(
-              `Transformed "${selectedText}" into a link with URL: ${pastedData}`
+              `Transformed "${selectedText}" into a link with URL: ${pastedData}`,
             );
           }
           // If not a URL, let the default paste behavior happen
@@ -1440,18 +1445,19 @@ document.addEventListener("DOMContentLoaded", () => {
   function handleSaveNote() {
     if (currentlyEditingIndex === null || !easyMDEInstance) {
       console.error(
-        "Cannot save: No entry selected or editor not initialized."
+        "Cannot save: No entry selected or editor not initialized.",
       );
       return;
     }
 
     const noteContent = easyMDEInstance.value();
     entries[currentlyEditingIndex].notes = noteContent;
+    // entries[currentlyEditingIndex].label = noteLabelInput.value.trim(); // Save the label
 
     console.log(
       "Saving notes for index:",
       currentlyEditingIndex,
-      entries[currentlyEditingIndex]
+      entries[currentlyEditingIndex],
     );
 
     // Extract and create tasks from markdown task lists
@@ -1463,7 +1469,7 @@ document.addEventListener("DOMContentLoaded", () => {
         showMainView(); // This will also destroy the EasyMDE instance
         renderAll();
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to save notes:", err);
         alert("Failed to save notes. Please try again.");
       });
@@ -1502,7 +1508,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const selectedDate = dateInput.value;
     const date = selectedDate
       ? selectedDate
-      : new Date().toISOString().split("T")[0];
+      : (() => {
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = (today.getMonth() + 1).toString().padStart(2, "0");
+          const day = today.getDate().toString().padStart(2, "0");
+          return `${year}-${month}-${day}`;
+        })();
 
     if (!description || isNaN(hours) || hours <= 0) {
       alert("Please enter a valid description and positive number of hours.");
@@ -1520,7 +1532,7 @@ document.addEventListener("DOMContentLoaded", () => {
         renderAll();
         hideAddEntryForm();
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to save new entry:", err);
         alert("Failed to save entry. Please try again.");
         // Remove the entry from local array if save failed
@@ -1539,7 +1551,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       console.error(
         "Invalid index for deletion:",
-        button.getAttribute("data-index")
+        button.getAttribute("data-index"),
       );
       return;
     }
@@ -1547,7 +1559,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const entryToDelete = entries[indexToDelete];
     if (
       confirm(
-        `Are you sure you want to delete the entry for "${entryToDelete.description}" on ${entryToDelete.date}?`
+        `Are you sure you want to delete the entry for "${entryToDelete.description}" on ${entryToDelete.date}?`,
       )
     ) {
       console.log("Deleting entry at index:", indexToDelete, entryToDelete);
@@ -1557,7 +1569,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(() => {
           renderAll();
         })
-        .catch(err => {
+        .catch((err) => {
           console.error("Failed to delete entry:", err);
           alert("Failed to delete entry. Please try again.");
           // Restore the entry if delete failed
@@ -1569,7 +1581,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle deletion of a task
   async function handleDeleteTask(taskId) {
-    const taskToDelete = tasks.find(task => task.id === taskId);
+    const taskToDelete = tasks.find((task) => task.id === taskId);
     if (!taskToDelete) {
       console.error("Task not found for deletion:", taskId);
       return;
@@ -1577,12 +1589,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (
       confirm(
-        `Are you sure you want to delete the task "${taskToDelete.description}"?`
+        `Are you sure you want to delete the task "${taskToDelete.description}"?`,
       )
     ) {
       console.log("Deleting task with ID:", taskId, taskToDelete);
       // Remove from the local array
-      tasks = tasks.filter(task => task.id !== taskId);
+      tasks = tasks.filter((task) => task.id !== taskId);
 
       try {
         await saveTasks(); // Save changes to IndexedDB
@@ -1629,7 +1641,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const hasMultipleProjects = Object.keys(projects).length > 1;
 
-    Object.values(projects).forEach(project => {
+    Object.values(projects).forEach((project) => {
       const projectItem = document.createElement("button");
       projectItem.className = `project-item ${
         project.id === currentProjectId ? "active" : ""
@@ -1684,7 +1696,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const currentProject = projects[projectId];
     const newName = prompt(
       `Rename project "${currentProject.name}" to:`,
-      currentProject.name
+      currentProject.name,
     );
 
     if (!newName || !newName.trim()) {
@@ -1750,7 +1762,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (hasEntries) {
       if (
         !confirm(
-          `Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`
+          `Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`,
         )
       ) {
         return;
@@ -1764,7 +1776,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (wasCurrentProject) {
         // Find another project to switch to (prefer default, then any other)
         const availableProjects = Object.keys(projects).filter(
-          id => id !== projectId
+          (id) => id !== projectId,
         );
         let targetProjectId = "default";
 
@@ -1808,7 +1820,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           request.onsuccess = () => {
             const keys = request.result;
-            keys.forEach(key => {
+            keys.forEach((key) => {
               store.delete(key);
             });
           };
@@ -1940,7 +1952,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Validate import data structure
       if (!validateImportData(importData)) {
         throw new Error(
-          "Invalid file format. Please select a valid export file."
+          "Invalid file format. Please select a valid export file.",
         );
       }
 
@@ -1960,7 +1972,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       // Import entries
-      entries = importData.entries.map(entry => ({
+      entries = importData.entries.map((entry) => ({
         date: entry.date,
         description: entry.description,
         hours: parseFloat(entry.hours),
@@ -2069,7 +2081,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return new Date(b.dateCreated) - new Date(a.dateCreated); // Newest first
     });
 
-    sortedTasks.forEach(task => {
+    sortedTasks.forEach((task) => {
       const taskElement = document.createElement("div");
       taskElement.className = "task-item";
 
@@ -2086,8 +2098,8 @@ document.addEventListener("DOMContentLoaded", () => {
              data-task-id="${task.id}"></div>
         <div class="task-content">
           <div class="task-description ${task.completed ? "completed" : ""}">${
-        task.description
-      }</div>
+            task.description
+          }</div>
           <div class="task-date">Created: ${formattedDate}${originNoteHtml}</div>
         </div>
         <div class="task-actions">
@@ -2188,12 +2200,12 @@ document.addEventListener("DOMContentLoaded", () => {
       switchTab(activeTab);
 
       console.log(
-        "10k Hours Tracker initialized successfully with multi-project support."
+        "10k Hours Tracker initialized successfully with multi-project support.",
       );
     } catch (error) {
       console.error("Failed to initialize app:", error);
       alert(
-        "Failed to initialize the application. Some features may not work properly."
+        "Failed to initialize the application. Some features may not work properly.",
       );
 
       // Fallback: continue with empty data
@@ -2222,7 +2234,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const allEntries = request.result || [];
       let migrationNeeded = false;
 
-      allEntries.forEach(entry => {
+      allEntries.forEach((entry) => {
         if (!entry.projectId) {
           entry.projectId = "default";
           migrationNeeded = true;
@@ -2252,7 +2264,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isNaN(index) || index < 0 || index >= entries.length) {
       console.error(
         "Invalid index for cell editing:",
-        cell.getAttribute("data-index")
+        cell.getAttribute("data-index"),
       );
       return;
     }
@@ -2310,9 +2322,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle save on blur and enter key
     input.addEventListener("blur", () =>
-      saveInlineEdit(cell, input, index, field, originalContent)
+      saveInlineEdit(cell, input, index, field, originalContent),
     );
-    input.addEventListener("keydown", e => {
+    input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         saveInlineEdit(cell, input, index, field, originalContent);
       } else if (e.key === "Escape") {
@@ -2344,9 +2356,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle save on blur and enter key
     input.addEventListener("blur", () =>
-      saveInlineEdit(cell, input, index, "hours", originalContent)
+      saveInlineEdit(cell, input, index, "hours", originalContent),
     );
-    input.addEventListener("keydown", e => {
+    input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         saveInlineEdit(cell, input, index, "hours", originalContent);
       } else if (e.key === "Escape") {
@@ -2376,9 +2388,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle save on blur and enter key
     input.addEventListener("blur", () =>
-      saveInlineEdit(cell, input, index, "date", originalContent)
+      saveInlineEdit(cell, input, index, "date", originalContent),
     );
-    input.addEventListener("keydown", e => {
+    input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         saveInlineEdit(cell, input, index, "date", originalContent);
       } else if (e.key === "Escape") {
@@ -2413,7 +2425,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Refresh the table to show updated values
         renderAll();
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to save inline edit:", err);
         alert("Failed to save changes. Please try again.");
         // Refresh to restore original values
@@ -2458,21 +2470,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle task completion toggle
   function handleTaskToggle(taskId) {
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasks.find((t) => t.id === taskId);
 
     if (task) {
       task.completed = !task.completed;
       console.log(
         `Task ${taskId} toggled to ${
           task.completed ? "completed" : "incomplete"
-        }`
+        }`,
       );
 
       saveTasks()
         .then(() => {
           renderTasks();
         })
-        .catch(err => {
+        .catch((err) => {
           console.error("Failed to save task toggle:", err);
           alert("Failed to update task. Please try again.");
           // Revert the change
@@ -2484,20 +2496,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle task deletion
   function handleTaskDelete(taskId) {
-    const task = tasks.find(t => t.id === taskId);
+    const task = tasks.find((t) => t.id === taskId);
 
     if (
       task &&
       confirm(`Are you sure you want to delete the task "${task.description}"?`)
     ) {
-      const taskIndex = tasks.findIndex(t => t.id === taskId);
+      const taskIndex = tasks.findIndex((t) => t.id === taskId);
       tasks.splice(taskIndex, 1);
 
       saveTasks()
         .then(() => {
           renderTasks();
         })
-        .catch(err => {
+        .catch((err) => {
           console.error("Failed to delete task:", err);
           alert("Failed to delete task. Please try again.");
           // Restore the task
@@ -2560,7 +2572,7 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTasks();
         hideAddTaskForm();
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Failed to save new task:", err);
         alert("Failed to save task. Please try again.");
         // Remove the task from local array if save failed
@@ -2661,7 +2673,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", handleDocumentClick);
 
   // Event delegation for task item interactions
-  tasksList.addEventListener("click", event => {
+  tasksList.addEventListener("click", (event) => {
     const target = event.target;
 
     // Handle task checkbox toggle
@@ -2688,7 +2700,7 @@ document.addEventListener("DOMContentLoaded", () => {
       {
         month: "long",
         year: "numeric",
-      }
+      },
     );
 
     // Clear previous calendar days
@@ -2700,14 +2712,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const firstDayOfMonth = new Date(
       currentDate.getFullYear(),
       currentDate.getMonth(),
-      1
+      1,
     );
     const lastDayOfMonth = new Date(
       currentDate.getFullYear(),
       currentDate.getMonth() + 1,
-      0
+      0,
     );
-    const startDay = firstDayOfMonth.getDay(); // 0 for Sunday, 1 for Monday, etc.
+    const startDay = (firstDayOfMonth.getDay() + 6) % 7; // 0 for Monday, 1 for Tuesday, ..., 6 for Sunday
     const totalDays = lastDayOfMonth.getDate();
 
     // Add empty divs for preceding days
@@ -2728,15 +2740,19 @@ document.addEventListener("DOMContentLoaded", () => {
         "flex-col",
         "items-center",
         "justify-between",
-        "min-h-[80px]"
+        "min-h-[80px]",
       );
 
       const date = new Date(
         currentDate.getFullYear(),
         currentDate.getMonth(),
-        day
+        day,
       );
-      const formattedDate = date.toISOString().split("T")[0]; // YYYY-MM-DD
+      // Manually format to YYYY-MM-DD to avoid timezone issues with toISOString
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, "0"); // Months are 0-indexed
+      const dayOfMonth = date.getDate().toString().padStart(2, "0");
+      const formattedDate = `${year}-${month}-${dayOfMonth}`;
 
       const hoursForDay = getLearningHoursForDate(formattedDate);
 
@@ -2754,19 +2770,31 @@ document.addEventListener("DOMContentLoaded", () => {
         date.getMonth() === today.getMonth() &&
         date.getFullYear() === today.getFullYear();
 
-      if (isToday) {
-        dayDiv.classList.add("bg-gray-200");
-        dayDiv.classList.remove("bg-black", "text-white");
-        dateSpan.classList.remove("text-white");
-        dateSpan.classList.add("text-black");
-        hoursSpan.classList.remove("text-white");
-        hoursSpan.classList.add("text-black");
-      } else if (hoursForDay > 0) {
-        dayDiv.classList.add("bg-black", "text-white");
-        hoursSpan.classList.add("text-white");
+      // Reset background colors for the dayDiv before applying new ones
+      dayDiv.classList.remove("bg-black", "bg-gray-200", "text-white"); // Clear background and text-white from dayDiv
+
+      // Clear dynamic text colors for dateSpan and hoursSpan
+      dateSpan.classList.remove("text-white", "text-black");
+      hoursSpan.classList.remove("text-white", "text-black", "text-gray-600");
+
+      if (hoursForDay > 0) {
+        dayDiv.classList.add("bg-black", "text-white"); // Black background, white text for dayDiv
+        dateSpan.classList.add("text-white"); // Date number is white
+        hoursSpan.classList.add("text-white"); // Hours text is white
       } else {
-        hoursSpan.classList.add("text-gray-600");
+        // This is for days without hours, including "today" if it has no hours.
+        dayDiv.classList.add("bg-white"); // Explicitly ensure white background
+        dateSpan.classList.add("text-black"); // Date number is black
+        // hoursSpan remains empty and its color is irrelevant
       }
+
+      // Add today-specific styling only if it's meant to have a distinct look *beyond* default empty cell.
+      // Based on the image, if today has no hours, it looks like a regular empty cell.
+      // If today needs a border or other distinct styling, it would go here.
+      if (isToday) {
+        // Example: dayDiv.classList.add("border-blue-500", "border-2");
+      }
+
       hoursSpan.textContent = hoursForDay > 0 ? `${hoursForDay} hrs` : "";
       dayDiv.appendChild(hoursSpan);
 
@@ -2776,7 +2804,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function getLearningHoursForDate(dateString) {
     let totalHours = 0;
-    entries.forEach(entry => {
+    entries.forEach((entry) => {
       if (entry.date === dateString) {
         totalHours += parseFloat(entry.hours);
       }
