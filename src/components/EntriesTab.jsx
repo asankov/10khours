@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext';
 function EntriesTab() {
   const { state, actions } = useApp();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [hideWorkEntries, setHideWorkEntries] = useState(false);
   const [formData, setFormData] = useState({
     description: '',
     hours: '',
@@ -14,10 +15,10 @@ function EntriesTab() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     const description = formData.description.trim();
     const hours = parseFloat(formData.hours);
-    
+
     if (!description || isNaN(hours) || hours <= 0) {
       alert('Please enter a valid description and positive number of hours.');
       return;
@@ -80,7 +81,7 @@ function EntriesTab() {
   const handleCellSave = async (index, field) => {
     try {
       let newValue = editingValue.trim();
-      
+
       if (field === 'hours') {
         const numValue = parseFloat(newValue);
         if (isNaN(numValue) || numValue <= 0) {
@@ -115,7 +116,18 @@ function EntriesTab() {
     }
   };
 
-  const sortedEntries = [...state.entries].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const filteredEntries = hideWorkEntries
+    ? state.entries.filter(entry => entry.description !== 'Work')
+    : state.entries;
+
+  const sortedEntries = [...filteredEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  // Calculate total Work hours when hidden
+  const totalWorkHours = hideWorkEntries
+    ? state.entries
+        .filter(entry => entry.description === 'Work')
+        .reduce((sum, entry) => sum + parseFloat(entry.hours), 0)
+    : 0;
 
   return (
     <>
@@ -126,13 +138,26 @@ function EntriesTab() {
             Track your learning journey with detailed entries
           </p>
         </div>
-        <button
-          className="btn btn-primary"
-          style={{ backgroundColor: 'black' }}
-          onClick={() => setShowAddForm(true)}
-        >
-          <span className="btn-icon">+</span> Add Entry
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            className={`px-3 py-2 text-sm rounded ${
+              hideWorkEntries
+                ? 'bg-blue-500 text-white hover:bg-blue-600'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            onClick={() => setHideWorkEntries(!hideWorkEntries)}
+            title={hideWorkEntries ? 'Show Work entries' : 'Hide Work entries'}
+          >
+            {hideWorkEntries ? 'Show Work' : 'Hide Work'}
+          </button>
+          <button
+            className="btn btn-primary"
+            style={{ backgroundColor: 'black' }}
+            onClick={() => setShowAddForm(true)}
+          >
+            <span className="btn-icon">+</span> Add Entry
+          </button>
+        </div>
       </div>
 
       {/* Add Entry Form */}
@@ -204,6 +229,15 @@ function EntriesTab() {
             </tr>
           </thead>
           <tbody>
+            {hideWorkEntries && totalWorkHours > 0 && (
+              <tr style={{ backgroundColor: '#f3f4f6' }}>
+                <td className="text-gray-600">-</td>
+                <td className="text-gray-600 font-semibold">Work (total)</td>
+                <td className="text-gray-600 font-semibold">{totalWorkHours.toFixed(1)}</td>
+                <td className="text-gray-600">-</td>
+                <td></td>
+              </tr>
+            )}
             {sortedEntries.length === 0 ? (
               <tr>
                 <td colSpan="5" className="text-center text-gray-500">
@@ -213,8 +247,8 @@ function EntriesTab() {
             ) : (
               sortedEntries.map((entry, sortedIndex) => {
                 const originalIndex = state.entries.findIndex((e) => e._id === entry._id);
-                
-                
+
+
                 // Simplified notes preview
                 let notesPreviewHtml = (
                   <span className="text-gray-400 italic">No notes</span>
