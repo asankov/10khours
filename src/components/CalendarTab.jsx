@@ -14,6 +14,40 @@ function CalendarTab() {
     return totalHours;
   };
 
+  const getWorkEntryForDate = (dateString) => {
+    return state.entries.find(
+      (entry) => entry.date === dateString && entry.description === 'Work'
+    );
+  };
+
+  const handleWorkToggle = async (dateString, dayOfWeek) => {
+    // Only allow work button on weekdays (Monday = 1, Friday = 5)
+    if (dayOfWeek === 0 || dayOfWeek === 6) return;
+
+    const workEntry = getWorkEntryForDate(dateString);
+    
+    try {
+      if (workEntry) {
+        // Delete the work entry
+        const entryIndex = state.entries.findIndex(e => e._id === workEntry._id);
+        if (entryIndex !== -1) {
+          await actions.deleteEntry(entryIndex);
+        }
+      } else {
+        // Add a new work entry
+        await actions.addEntry({
+          date: dateString,
+          description: 'Work',
+          hours: 8,
+          notes: undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to toggle work entry:', error);
+      alert('Failed to update work entry. Please try again.');
+    }
+  };
+
   const renderCalendar = () => {
     const firstDayOfMonth = new Date(
       state.currentDate.getFullYear(),
@@ -50,6 +84,10 @@ function CalendarTab() {
       const formattedDate = `${year}-${month}-${dayOfMonth}`;
 
       const hoursForDay = getLearningHoursForDate(formattedDate);
+      const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      const isWorkingDay = dayOfWeek >= 1 && dayOfWeek <= 5; // Monday to Friday
+      const workEntry = getWorkEntryForDate(formattedDate);
+      const hasWorkEntry = !!workEntry;
 
       const today = new Date();
       const isToday =
@@ -76,6 +114,22 @@ function CalendarTab() {
           <span className={hoursClasses}>
             {hoursForDay > 0 ? `${hoursForDay} hrs` : ''}
           </span>
+          {isWorkingDay && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleWorkToggle(formattedDate, dayOfWeek);
+              }}
+              className={`mt-1 px-2 py-1 text-xs rounded ${
+                hasWorkEntry 
+                  ? 'bg-green-500 text-white hover:bg-green-600' 
+                  : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+              }`}
+              title={hasWorkEntry ? 'Remove Work entry' : 'Add Work entry (8 hrs)'}
+            >
+              Work
+            </button>
+          )}
         </div>
       );
     }
